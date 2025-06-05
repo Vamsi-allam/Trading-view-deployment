@@ -196,7 +196,7 @@ export async function triggerAlertTest(symbol, condition, value) {
     console.log('🔍 DIAGNOSTIC: Discord webhook test result:', webhookTest);
     
     // Try manual alert trigger
-    const result = await fetch(`${API_BASE_URL}/api/force-trigger-alert`, {
+    const result = await fetch(`${API_BASE_URL}/force-trigger-alert`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
