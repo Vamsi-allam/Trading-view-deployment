@@ -1,4 +1,4 @@
-const API_BASE_URL = 'https://trading-app-backend-t9k9.onrender.com' || 'http://localhost:8000/api';
+const API_BASE_URL = 'https://trading-app-backend-t9k9.onrender.com/api' || 'http://localhost:8000/api';
 
 // Generate mock candle data since we don't have a backend yet
 function generateMockCandles(symbol, timeframe) {
