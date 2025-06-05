@@ -184,7 +184,7 @@ const PortfolioPanel = () => {
                     <td>{formatDateTime(trade.time)}</td>
                     <td>{trade.symbol}</td>
                     <td className={trade.direction === 'buy' ? 'buy' : 'sell'}>
-                      {trade.type === 'open' ? 'Open ' : 'Close '}
+                      {trade.type === 'open' ? 'Open ' : (trade.liquidated ? 'Liquidated ' : 'Close ')}
                       {trade.direction.toUpperCase()}
                     </td>
                     <td>{trade.quantity}</td>
