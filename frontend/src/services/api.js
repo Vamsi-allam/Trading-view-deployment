@@ -195,14 +195,18 @@ export async function triggerAlertTest(symbol, condition, value) {
     const webhookTest = await testDiscordWebhook();
     console.log('🔍 DIAGNOSTIC: Discord webhook test result:', webhookTest);
     
-    // Try manual alert trigger
-    const result = await fetch(`${API_BASE_URL}/force-trigger-alert`, {
+    // Try manual alert trigger using the test-alert endpoint instead of force-trigger-alert
+    const result = await fetch(`${API_BASE_URL}/test-alert`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        alert: alertData,
-        currentPrice: price,
-        forceSend: true
+        symbol: symbol,
+        price: price,
+        condition: condition,
+        targetPrice: parseFloat(value),
+        isRealAlert: true,
+        forceSend: true,
+        message: `🔍 DIAGNOSTIC TEST: ${symbol} ${condition} ${value} (current price: ${price})`
       })
     });
     
