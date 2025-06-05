@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect } from 'react';
+import { createContext, useContext, useState, useEffect, useCallback } from 'react';
 import { useSnackbar } from './SnackbarContext';
 
 const TradingContext = createContext();
@@ -134,7 +134,7 @@ export const TradingProvider = ({ children }) => {
   };
   
   // Close a position
-  const closePosition = (positionId, closePrice) => {
+  const closePosition = (positionId, closePrice, isLiquidation = false) => {
     // Find the position
     const position = positions.find(p => p.id === positionId);
     
@@ -154,8 +154,6 @@ export const TradingProvider = ({ children }) => {
       pnl = positionValue - closeValue;
     }
     
-    // Remove the leverage multiplication - PnL depends only on quantity and price difference
-    
     // Create history entry
     const historyEntry = {
       id: Date.now().toString(),
@@ -169,24 +167,39 @@ export const TradingProvider = ({ children }) => {
       leverage: position.leverage,
       time: new Date().toISOString(),
       pnl,
-      margin: position.margin
+      margin: position.margin,
+      liquidated: isLiquidation
     };
     
     // Add to trade history
     setTradeHistory(prev => [...prev, historyEntry]);
     
-    // Return margin + PnL to balance
+    // Return margin + PnL to balance (if liquidated, only return what's left after loss)
     setBalance(prev => prev + position.margin + pnl);
     
     // Remove from positions
     setPositions(prev => prev.filter(p => p.id !== positionId));
     
-    showSuccess(`Closed position with ${pnl >= 0 ? 'profit' : 'loss'} of $${Math.abs(pnl).toFixed(2)}`);
+    if (isLiquidation) {
+      showError(`Position ${position.symbol} liquidated at $${closePrice.toFixed(2)}`);
+    } else {
+      showSuccess(`Closed position with ${pnl >= 0 ? 'profit' : 'loss'} of $${Math.abs(pnl).toFixed(2)}`);
+    }
+    
     return true;
   };
   
+  // Add liquidation price calculator function
+  const calculateLiquidationPrice = (entryPrice, leverage, direction, maintenanceMargin = 0.01) => {
+    if (direction === 'buy') {
+      return entryPrice * (1 - (1 / leverage) + maintenanceMargin);
+    } else {
+      return entryPrice * (1 + (1 / leverage) - maintenanceMargin);
+    }
+  };
+
   // Update position PnL based on current price
-  const updatePositionPnl = (symbol, currentPrice) => {
+  const updatePositionPnl = useCallback((symbol, currentPrice) => {
     setPositions(prev => 
       prev.map(position => {
         if (position.symbol !== symbol || position.status !== 'open') {
@@ -204,7 +217,24 @@ export const TradingProvider = ({ children }) => {
           pnl = positionValue - currentValue;
         }
         
-        // Remove the leverage multiplication - PnL depends only on quantity and price difference
+        // Calculate liquidation price
+        const liqPrice = calculateLiquidationPrice(
+          position.entryPrice,
+          position.leverage,
+          position.direction
+        );
+        
+        // Check if position should be liquidated
+        if (position.direction === 'buy' && currentPrice <= liqPrice) {
+          // Close position at liquidation price - it's been liquidated
+          closePosition(position.id, liqPrice, true);
+          return position; // Return unchanged since we'll filter it out
+        } 
+        else if (position.direction === 'sell' && currentPrice >= liqPrice) {
+          // Close position at liquidation price - it's been liquidated
+          closePosition(position.id, liqPrice, true);
+          return position;
+        }
         
         // Check for take profit or stop loss
         if (position.takeProfit !== null && position.direction === 'buy' && currentPrice >= position.takeProfit) {
@@ -236,7 +266,7 @@ export const TradingProvider = ({ children }) => {
         };
       })
     );
-  };
+  }, [closePosition]);
   
   // Cancel pending order
   const cancelOrder = (orderId) => {
@@ -357,7 +387,8 @@ export const TradingProvider = ({ children }) => {
     updatePositionPnl,
     cancelOrder,
     checkLimitOrders,
-    modifyPositionTpSl  // Add the new function to the context value
+    modifyPositionTpSl,
+    calculateLiquidationPrice  // Export the liquidation price calculator
   };
   
   return (
