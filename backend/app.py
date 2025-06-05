@@ -20,7 +20,7 @@ app = FastAPI(title="Trading View Clone API")
 app.add_middleware(
     CORSMiddleware,
     allow_origins=[
-        "https://trading-view-deployment.vercel.app/",  # Replace with your Vercel domain
+        "https://trading-view-deployment.vercel.app",  # Replace with your Vercel domain
         "http://localhost:3000",  # Keep for local development
     ],
     allow_credentials=True,
