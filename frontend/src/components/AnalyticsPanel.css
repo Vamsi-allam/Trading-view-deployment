@@ -1,0 +1,280 @@
+.analytics-panel {
+  padding: 20px;
+  border-radius: 8px;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+  margin-bottom: 20px;
+}
+
+.analytics-panel.light {
+  background-color: white;
+  border: 1px solid #e2e8f0;
+}
+
+.analytics-panel.dark {
+  background-color: #1c1c1c;
+  border: 1px solid #2d3748;
+  color: #f7fafc;
+}
+
+.panel-title {
+  margin-top: 0;
+  margin-bottom: 20px;
+  font-size: 1.5rem;
+}
+
+.analytics-summary {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+  margin-bottom: 24px;
+}
+
+.summary-card {
+  background-color: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+
+.analytics-panel.dark .summary-card {
+  background-color: #2d3748;
+  border-color: #4a5568;
+}
+
+.summary-card h3 {
+  margin-top: 0;
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  color: #718096;
+}
+
+.analytics-panel.dark .summary-card h3 {
+  color: #a0aec0;
+}
+
+.card-value {
+  font-size: 1.8rem;
+  font-weight: 700;
+}
+
+.card-subtitle {
+  margin-top: 8px;
+  font-size: 0.8rem;
+  color: #718096;
+}
+
+.analytics-panel.dark .card-subtitle {
+  color: #a0aec0;
+}
+
+.active-trades-section {
+  margin-bottom: 24px;
+}
+
+.active-trades-section h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.trades-table-container {
+  overflow-x: auto;
+}
+
+.trades-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.trades-table th,
+.trades-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.analytics-panel.dark .trades-table th,
+.analytics-panel.dark .trades-table td {
+  border-bottom-color: #4a5568;
+}
+
+.trades-table th {
+  font-weight: 500;
+  color: #718096;
+}
+
+.analytics-panel.dark .trades-table th {
+  color: #a0aec0;
+}
+
+.close-trade-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: none;
+  background-color: #3182ce;
+  color: white;
+  cursor: pointer;
+}
+
+.close-trade-btn:hover {
+  background-color: #2c5282;
+}
+
+.no-trades-message {
+  text-align: center;
+  padding: 24px;
+  color: #718096;
+}
+
+.analytics-panel.dark .no-trades-message {
+  color: #a0aec0;
+}
+
+.performance-metrics h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.metrics-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.metric-card {
+  background-color: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+}
+
+.analytics-panel.dark .metric-card {
+  background-color: #2d3748;
+  border-color: #4a5568;
+}
+
+.metric-title {
+  margin-bottom: 8px;
+  font-size: 0.9rem;
+  color: #718096;
+}
+
+.analytics-panel.dark .metric-title {
+  color: #a0aec0;
+}
+
+.metric-value {
+  font-size: 1.5rem;
+  font-weight: 700;
+}
+
+.buy {
+  color: #38a169;
+}
+
+.sell {
+  color: #e53e3e;
+}
+
+.profit {
+  color: #38a169;
+}
+
+.loss {
+  color: #e53e3e;
+}
+
+/* Add styles for the position stats section */
+.position-stats {
+  margin-bottom: 24px;
+  background-color: #f7fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 8px;
+  padding: 16px;
+}
+
+.analytics-panel.dark .position-stats {
+  background-color: #2d3748;
+  border-color: #4a5568;
+}
+
+.position-stats h3 {
+  margin-top: 0;
+  margin-bottom: 16px;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(200px, 1fr));
+  gap: 16px;
+}
+
+.stat-item {
+  display: flex;
+  justify-content: space-between;
+  padding: 8px 0;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.analytics-panel.dark .stat-item {
+  border-bottom-color: #4a5568;
+}
+
+.stat-label {
+  color: #718096;
+}
+
+.analytics-panel.dark .stat-label {
+  color: #a0aec0;
+}
+
+.stat-value {
+  font-weight: 600;
+}
+
+/* Add styles for filter buttons */
+.section-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.section-header h3 {
+  margin: 0;
+}
+
+.trade-filters {
+  display: flex;
+  gap: 8px;
+}
+
+.filter-btn {
+  padding: 6px 12px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  background-color: transparent;
+  color: #4a5568;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.analytics-panel.dark .filter-btn {
+  border-color: #4a5568;
+  color: #a0aec0;
+}
+
+.filter-btn.active {
+  background-color: #3182ce;
+  color: white;
+  border-color: #3182ce;
+}
+
+.filter-btn:hover:not(.active) {
+  background-color: #f7fafc;
+}
+
+.analytics-panel.dark .filter-btn:hover:not(.active) {
+  background-color: #2d3748;
+}

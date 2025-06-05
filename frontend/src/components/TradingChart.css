@@ -1,0 +1,363 @@
+.chart-container {
+  margin-bottom: 20px;
+  border-radius: 8px;
+  overflow: hidden;
+  cursor: crosshair;
+  transition: width 0.3s ease, margin 0.3s ease;
+  width: 100%;
+}
+
+.chart-controls {
+  display: flex;
+  gap: 12px;
+  margin-bottom: 16px;
+  flex-wrap: wrap;
+}
+
+.chart-select {
+  min-width: 120px;
+  padding: 8px 12px;
+  cursor: pointer;
+  border-radius: 4px;
+  border: 1px solid var(--color-border-light);
+}
+
+.chart-container.dark .chart-select {
+  border-color: var(--color-border-dark);
+  background-color: var(--color-bg-dark);
+  color: var(--color-text-dark);
+}
+
+.chart-area {
+  width: 100%;
+  height: 500px;
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  border: 1px solid var(--color-border-light);
+  transition: width 0.3s ease;
+}
+
+.sidebar-collapsed .chart-area {
+  /* Make chart use the extra space when sidebar is collapsed */
+  width: 100%;
+}
+
+.chart-container.dark .chart-area {
+  /*background-color: #000000; /* Changed from #1e2130 to pure black */
+  background-color: #1e2130; /* Changed from #1e2130 to pure black */
+  border-color: var(--color-border-dark);
+  color: var(--color-text-dark);
+}
+
+.chart-placeholder {
+  height: 100%;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 20px;
+}
+
+.chart-error {
+  height: 100%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #e53e3e;
+  text-align: center;
+  padding: 20px;
+}
+
+.chart-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 16px;
+}
+
+.chart-info {
+  display: flex;
+  align-items: center;
+  gap: 20px;
+}
+
+.chart-inner {
+  width: 100%;
+  height: 100%;
+  position: relative;
+}
+
+.price-display {
+  font-size: 1.5rem;
+  font-weight: bold;
+  color: var(--color-primary);
+  transition: color 0.4s ease;
+  padding: 4px 8px;
+  border-radius: 4px;
+}
+
+.current-price {
+  transition: color 0.4s ease;
+  display: inline-block;
+}
+
+.price-up {
+  color: #26a69a !important;
+  animation: subtle-pulse-up 0.7s ease;
+}
+
+.price-down {
+  color: #ef5350 !important;
+  animation: subtle-pulse-down 0.7s ease;
+}
+
+@keyframes subtle-pulse-up {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+@keyframes subtle-pulse-down {
+  0% { transform: scale(1); }
+  30% { transform: scale(1.02); }
+  100% { transform: scale(1); }
+}
+
+.candle-blink {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  background-color: rgba(38, 166, 154, 0.02);
+  pointer-events: none;
+  animation: subtle-candle-blink 0.4s ease;
+  z-index: 1;
+}
+
+@keyframes subtle-candle-blink {
+  0% { opacity: 0; }
+  40% { opacity: 0.4; }
+  100% { opacity: 0; }
+}
+
+.time-display {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  font-size: 0.9rem;
+}
+
+.current-date {
+  color: var(--color-text-light);
+  opacity: 0.7;
+}
+
+.dark .current-date {
+  color: var(--color-text-dark);
+}
+
+.current-time {
+  font-weight: bold;
+}
+
+.chart-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}
+
+.candle-data-overlay {
+  position: absolute;
+  top: 10px;
+  left: 10px;
+  z-index: 1000;
+  display: flex;
+  background-color: rgba(30, 33, 48, 0.8);
+  border-radius: 4px;
+  padding: 8px 12px;
+  gap: 10px;
+  font-family: monospace;
+  font-size: 13px;
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+  backdrop-filter: blur(4px);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  pointer-events: none;
+  width: auto;
+  min-width: 280px; /* Set a fixed minimum width */
+  transition: none; /* Remove transitions */
+  transform: none !important; /* Prevent transforms */
+}
+
+.candle-data-overlay.hover {
+  background-color: rgba(30, 33, 48, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.2);
+  box-shadow: 0 4px 10px rgba(0, 0, 0, 0.5);
+  /* No transform or transitions that could cause movement */
+}
+
+.light .candle-data-overlay {
+  background-color: rgba(255, 255, 255, 0.85);
+  border: 1px solid rgba(0, 0, 0, 0.1);
+  box-shadow: 0 2px 5px rgba(0, 0, 0, 0.1);
+}
+
+.light .candle-data-overlay.hover {
+  background-color: rgba(255, 255, 255, 0.95);
+  border: 1px solid rgba(0, 0, 0, 0.2);
+}
+
+.candle-data-item {
+  display: flex;
+  align-items: center;
+  gap: 3px;
+}
+
+.candle-data-label {
+  font-weight: bold;
+  opacity: 0.8;
+}
+
+.candle-data-value {
+  font-weight: normal;
+}
+
+.candle-data-item.time {
+  margin-right: 8px;
+  border-right: 1px solid rgba(255, 255, 255, 0.2);
+  padding-right: 8px;
+  color: #9BA2B0;
+}
+
+.light .candle-data-item.time {
+  border-right: 1px solid rgba(0, 0, 0, 0.1);
+  color: #555;
+}
+
+.positive {
+  color: #26a69a;
+}
+
+.negative {
+  color: #ef5350;
+}
+
+.change {
+  font-weight: bold;
+}
+
+/* Ensure chart area has the right dimensions */
+.chart-area {
+  width: 100%;
+  height: 500px;
+}
+
+/* Context Menu Styles */
+.chart-context-menu {
+  background-color: #ffffff;
+  border-radius: 4px;
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+  border: 1px solid var(--color-border-light);
+  width: 150px;
+}
+
+.dark .chart-context-menu {
+  background-color: #121212; /* Changed from var(--color-bg-dark) to a slightly lighter black */
+  border-color: var(--color-border-dark);
+  color: var(--color-text-dark);
+}
+
+.chart-context-menu ul {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.chart-context-menu li {
+  padding: 8px 12px;
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+.chart-context-menu li:hover {
+  background-color: rgba(0, 0, 0, 0.05);
+}
+
+.dark .chart-context-menu li:hover {
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+/* Prevent text selection when using context menu */
+.chart-area {
+  user-select: none;
+}
+
+/* Trade buttons */
+.trade-buttons {
+  display: none;
+}
+
+.order-form-overlay {
+  display: none;
+}
+
+/* Direction toggle */
+.direction-toggle {
+  display: flex;
+  gap: 8px;
+  margin-left: auto; /* Push buttons to the right */
+}
+
+.direction-btn {
+  padding: 8px 16px;
+  border-radius: 4px;
+  font-weight: 500;
+  cursor: pointer;
+  border: 1px solid;
+  min-width: 80px;
+  transition: all 0.2s ease;
+}
+
+/* Buy button styles */
+.direction-btn.buy {
+  background-color: transparent;
+  border-color: #38a169;
+  color: #38a169;
+}
+
+.direction-btn.buy:hover {
+  background-color: #38a169;
+  color: white;
+}
+
+/* Sell button styles */
+.direction-btn.sell {
+  background-color: transparent;
+  border-color: #e53e3e;
+  color: #e53e3e;
+}
+
+.direction-btn.sell:hover {
+  background-color: #e53e3e;
+  color: white;
+}
+
+/* Dark mode adjustments */
+.dark .direction-btn {
+  background-color: transparent;
+}
+
+.dark .direction-btn:hover {
+  color: white;
+}
+
+/* Make sure chart wrapper allows for side panel */
+.chart-wrapper {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+}

@@ -1,0 +1,265 @@
+.positions-panel {
+  margin-top: 20px;
+  border-radius: 8px;
+  overflow: hidden;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.1);
+}
+
+.positions-panel.light {
+  background-color: white;
+  border: 1px solid #e2e8f0;
+}
+
+.positions-panel.dark {
+  background-color: #1c1c1c;
+  border: 1px solid #2d3748;
+  color: #f7fafc;
+}
+
+.positions-header {
+  padding: 16px;
+  border-bottom: 1px solid #e2e8f0;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.positions-panel.dark .positions-header {
+  border-bottom-color: #2d3748;
+}
+
+.positions-header h3 {
+  margin: 0;
+  font-size: 1.1rem;
+}
+
+.tab-selector {
+  display: flex;
+  gap: 2px;
+}
+
+.tab-btn {
+  padding: 6px 12px;
+  background: none;
+  border: none;
+  border-radius: 4px;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.positions-panel.light .tab-btn {
+  color: #4a5568;
+}
+
+.positions-panel.dark .tab-btn {
+  color: #a0aec0;
+}
+
+.tab-btn.active {
+  background-color: #3182ce;
+  color: white;
+}
+
+.positions-table-container {
+  overflow-x: auto;
+}
+
+.positions-table {
+  width: 100%;
+  border-collapse: collapse;
+}
+
+.positions-table th,
+.positions-table td {
+  padding: 12px 16px;
+  text-align: left;
+  border-bottom: 1px solid #e2e8f0;
+}
+
+.positions-panel.dark .positions-table th,
+.positions-panel.dark .positions-table td {
+  border-bottom-color: #2d3748;
+}
+
+.positions-table th {
+  font-weight: 500;
+  font-size: 0.9rem;
+  color: #718096;
+}
+
+.positions-panel.dark .positions-table th {
+  color: #a0aec0;
+}
+
+.buy {
+  color: #38a169;
+}
+
+.sell {
+  color: #e53e3e;
+}
+
+.profit {
+  color: #38a169;
+}
+
+.loss {
+  color: #e53e3e;
+}
+
+.close-position-btn,
+.cancel-order-btn {
+  padding: 6px 10px;
+  border-radius: 4px;
+  border: none;
+  font-size: 0.8rem;
+  cursor: pointer;
+  color: white;
+  background-color: #3182ce;
+}
+
+.close-position-btn:hover,
+.cancel-order-btn:hover {
+  background-color: #2c5282;
+}
+
+.pending-row {
+  background-color: rgba(237, 242, 247, 0.5);
+}
+
+.positions-panel.dark .pending-row {
+  background-color: rgba(45, 55, 72, 0.3);
+}
+
+.no-positions {
+  padding: 32px 16px;
+  text-align: center;
+  color: #718096;
+}
+
+.positions-panel.dark .no-positions {
+  color: #a0aec0;
+}
+
+.liquidation-price {
+  color: #e53e3e !important;
+  font-weight: 500;
+}
+
+.positions-panel.dark .liquidation-price {
+  color: #fc8181 !important;
+}
+
+.tp-sl-column {
+  min-width: 120px;
+}
+
+.tp-sl-values {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  font-size: 0.9rem;
+}
+
+.tp-sl-values .tp {
+  color: #38a169;
+}
+
+.tp-sl-values .sl {
+  color: #e53e3e;
+}
+
+.positions-panel.dark .tp-sl-values .tp {
+  color: #68d391;
+}
+
+.positions-panel.dark .tp-sl-values .sl {
+  color: #fc8181;
+}
+
+.modify-inputs {
+  padding: 16px 0;
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.input-group {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.input-group label {
+  font-weight: 500;
+  color: #4a5568;
+}
+
+.dark .input-group label {
+  color: #a0aec0;
+}
+
+.input-group input {
+  padding: 8px 12px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+}
+
+.dark .input-group input {
+  background-color: #2d3748;
+  border-color: #4a5568;
+  color: #f7fafc;
+}
+
+.modify-btn {
+  padding: 6px;
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: #4299e1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.modify-btn:hover {
+  color: #3182ce;
+}
+
+.confirm-btn {
+  background-color: #3182ce;
+  color: white;
+  border: none;
+  padding: 8px 16px;
+  border-radius: 4px;
+  cursor: pointer;
+}
+
+.confirm-btn:hover {
+  background-color: #2c5282;
+}
+
+.input-error {
+  color: #e53e3e;
+  font-size: 0.8rem;
+  margin-top: 4px;
+}
+
+.positions-panel.dark .input-error {
+  color: #fc8181;
+}
+
+/* Add error styles for inputs */
+.error-input {
+  border-color: #e53e3e !important;
+  background-color: rgba(229, 62, 62, 0.05) !important;
+}
+
+/* Ensure error messages don't break layout */
+.input-group {
+  margin-bottom: 20px; /* Increase spacing to accommodate error messages */
+}
+
+.input-group:last-child {
+  margin-bottom: 0;
+}
