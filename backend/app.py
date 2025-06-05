@@ -16,13 +16,16 @@ load_dotenv()
 
 app = FastAPI(title="Trading View Clone API")
 
-# Add CORS middleware with more permissive settings
+# Update CORS middleware for production deployment
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Allow all origins for development
+    allow_origins=[
+        "https://your-frontend-name.vercel.app",  # Replace with your Vercel domain
+        "http://localhost:3000",  # Keep for local development
+    ],
     allow_credentials=True,
-    allow_methods=["*"],  # Allow all methods
-    allow_headers=["*"],  # Allow all headers
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 # Initialize services
@@ -433,4 +436,6 @@ app.include_router(prices_router, prefix="/api/prices", tags=["prices"])
 
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
+    # Use PORT environment variable provided by Render
+    port = int(os.environ.get("PORT", 8000))
+    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=True)
