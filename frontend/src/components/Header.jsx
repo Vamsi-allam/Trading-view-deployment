@@ -1,4 +1,4 @@
-import { Link } from 'react-router-dom';
+import { useNavigation } from '../context/NavigationContext';
 import { useTheme } from '../context/ThemeContext'
 import { useSnackbar } from '../context/SnackbarContext';
 import './Header.css'
@@ -7,6 +7,7 @@ import { FaMoon, FaSun, FaUser, FaHome, FaChartLine, FaBell } from 'react-icons/
 const Header = () => {
   const { isDarkMode, toggleDarkMode } = useTheme()
   const { showSuccess, showInfo } = useSnackbar();
+  const { navigateTo } = useNavigation();
   
   const handleThemeToggle = () => {
     toggleDarkMode();
@@ -19,17 +20,7 @@ const Header = () => {
         <div className="header-left">
           <h1 className="header-title">Trading View Clone</h1>
           
-          <nav className="header-nav">
-            <Link to="/dashboard" className="nav-link">
-              <FaHome /> Dashboard
-            </Link>
-            <Link to="/analytics" className="nav-link">
-              <FaChartLine /> Analytics
-            </Link>
-            <Link to="/alerts" className="nav-link">
-              <FaBell /> Alerts
-            </Link>
-          </nav>
+          
         </div>
         
         <div className="header-actions">
@@ -41,9 +32,9 @@ const Header = () => {
             {isDarkMode ? <FaSun /> : <FaMoon />}
           </button>
           
-          <Link to="/portfolio" className="btn-outline header-button">
+          <button onClick={() => navigateTo('portfolio')} className="btn-outline header-button">
             <FaUser /> Account
-          </Link>
+          </button>
         </div>
       </div>
     </header>

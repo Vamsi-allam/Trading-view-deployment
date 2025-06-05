@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react'
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom'
 import { useTheme } from './context/ThemeContext'
+import { useNavigation } from './context/NavigationContext'
 import Header from './components/Header'
 import Sidebar from './components/Sidebar'
 import TradingChart from './components/TradingChart'
@@ -14,6 +15,7 @@ import './App.css'
 
 function App() {
   const { isDarkMode } = useTheme();
+  const { activeSection } = useNavigation();
   const [useSimpleChart, setUseSimpleChart] = useState(false);
   // Add state for sidebar visibility
   const [sidebarOpen, setSidebarOpen] = useState(true);
@@ -49,6 +51,28 @@ function App() {
     </>
   );
 
+  const Portfolio = () => <PortfolioPanel />;
+  const Alerts = () => <AlertsPanel compact={false} />;
+  const Analytics = () => <AnalyticsPanel />;
+
+  // Render the appropriate component based on activeSection
+  const renderContent = () => {
+    switch(activeSection) {
+      case 'dashboard':
+        return <Dashboard />;
+      case 'portfolio':
+        return <Portfolio />;
+      case 'alerts':
+        return <Alerts />;
+      case 'analytics':
+        return <Analytics />;
+      case 'settings':
+        return <Settings />;
+      default:
+        return <Dashboard />;
+    }
+  };
+
   const Settings = () => (
     <div className="content-panel">
       <h2>Settings</h2>
@@ -66,15 +90,7 @@ function App() {
             toggleSidebar={toggleSidebar}
           />
           <main className="main-content">
-            <Routes>
-              <Route path="/" element={<Navigate to="/dashboard" replace />} />
-              <Route path="/dashboard" element={<Dashboard />} />
-              <Route path="/portfolio" element={<PortfolioPanel />} />
-              <Route path="/alerts" element={<AlertsPanel compact={false} />} />
-              <Route path="/analytics" element={<AnalyticsPanel />} />
-              <Route path="/settings" element={<Settings />} />
-              <Route path="*" element={<Navigate to="/dashboard" replace />} />
-            </Routes>
+            {renderContent()}
           </main>
         </div>
         <SnackbarAlert />

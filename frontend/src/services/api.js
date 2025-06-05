@@ -1,4 +1,21 @@
-const API_BASE_URL = 'https://trading-app-backend-t9k9.onrender.com/api' || 'http://localhost:8000/api';
+// Use environment variable with fallback logic for API URL
+const API_BASE_URL = import.meta.env.VITE_API_URL || 
+                    'https://trading-app-backend-t9k9.onrender.com/api';
+
+console.log('Using API URL:', API_BASE_URL);
+
+// Add helper function to toggle between local and deployed backend
+export function toggleBackendSource(useLocal) {
+  if (useLocal) {
+    localStorage.setItem('useLocalBackend', 'true');
+    console.log('Switched to local backend: http://localhost:8000/api');
+  } else {
+    localStorage.setItem('useLocalBackend', 'false');
+    console.log('Switched to deployed backend: https://trading-app-backend-t9k9.onrender.com/api');
+  }
+  // Reload the page to apply the change
+  window.location.reload();
+}
 
 // Generate mock candle data since we don't have a backend yet
 function generateMockCandles(symbol, timeframe) {

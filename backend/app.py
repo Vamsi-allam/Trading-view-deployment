@@ -22,6 +22,8 @@ app.add_middleware(
     allow_origins=[
         "https://trading-view-deployment.vercel.app",  # Replace with your Vercel domain
         "http://localhost:3000",  # Keep for local development
+        "http://localhost:5173",  # Add Vite's default port
+        "http://127.0.0.1:5173",  # Also include 127.0.0.1 version
     ],
     allow_credentials=True,
     allow_methods=["*"],

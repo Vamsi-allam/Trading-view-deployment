@@ -1,5 +1,5 @@
-import { useEffect } from 'react';
-import { Link, useLocation } from 'react-router-dom';
+import { useEffect, useState } from 'react';
+import { Link, useLocation, useNavigate } from 'react-router-dom';
 import { FaChevronLeft, FaChevronRight, FaHome, FaBriefcase, FaBell, FaChartLine, FaCog, FaExchangeAlt } from 'react-icons/fa';
 import { useTheme } from '../context/ThemeContext';
 import './Sidebar.css';
@@ -7,20 +7,46 @@ import './Sidebar.css';
 const Sidebar = ({ isOpen, toggleSidebar }) => {
   const { isDarkMode, toggleDarkMode } = useTheme();
   const location = useLocation();
+  const navigate = useNavigate();
+  const [activeSection, setActiveSection] = useState('dashboard');
   
-  // Navigation items with routes - including Markets entry
+  // Navigation items with sections instead of routes
   const navItems = [
-    { id: 'dashboard', label: 'Dashboard', icon: <FaHome />, path: '/dashboard' },
-    { id: 'portfolio', label: 'Portfolio', icon: <FaBriefcase />, path: '/portfolio' },
-    { id: 'alerts', label: 'Alerts', icon: <FaBell />, path: '/alerts' },
-    { id: 'analytics', label: 'Analytics', icon: <FaChartLine />, path: '/analytics' },
-    { id: 'settings', label: 'Settings', icon: <FaCog />, path: '/settings' }
+    { id: 'dashboard', label: 'Dashboard', icon: <FaHome /> },
+    { id: 'portfolio', label: 'Portfolio', icon: <FaBriefcase /> },
+    { id: 'alerts', label: 'Alerts', icon: <FaBell /> },
+    { id: 'analytics', label: 'Analytics', icon: <FaChartLine /> },
+    { id: 'settings', label: 'Settings', icon: <FaCog /> }
   ];
 
-  // Check if current path is active
-  const isActive = (path) => {
-    return location.pathname === path;
+  // Handle navigation without changing URL - improved version
+  const handleNavigation = (sectionId) => {
+    setActiveSection(sectionId);
+    
+    // Use window.history instead of navigate for better control
+    window.history.replaceState(null, '', '/');
+    
+    // Dispatch a custom event so other components can react to navigation
+    const navEvent = new CustomEvent('app-navigation', { 
+      detail: { section: sectionId } 
+    });
+    window.dispatchEvent(navEvent);
   };
+
+  // Determine if section is active
+  const isActive = (sectionId) => {
+    return activeSection === sectionId;
+  };
+
+  // Set initial active section based on current path (for page refresh)
+  useEffect(() => {
+    const path = location.pathname;
+    if (path.includes('dashboard')) setActiveSection('dashboard');
+    else if (path.includes('portfolio')) setActiveSection('portfolio');
+    else if (path.includes('alerts')) setActiveSection('alerts');
+    else if (path.includes('analytics')) setActiveSection('analytics');
+    else if (path.includes('settings')) setActiveSection('settings');
+  }, [location.pathname]);
 
   return (
     <div className={`sidebar ${isDarkMode ? 'dark' : 'light'} ${isOpen ? 'open' : 'collapsed'}`}>
@@ -30,14 +56,14 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
       
       <div className="sidebar-items">
         {navItems.map(item => (
-          <Link 
+          <div 
             key={item.id}
-            to={item.path}
-            className={`sidebar-item ${isActive(item.path) ? 'active' : ''}`}
+            className={`sidebar-item ${isActive(item.id) ? 'active' : ''}`}
+            onClick={() => handleNavigation(item.id)}
           >
             {item.icon}
             {isOpen && <span>{item.label}</span>}
-          </Link>
+          </div>
         ))}
       </div>
       
