@@ -26,6 +26,48 @@
   margin: 0;
 }
 
+/* Add tab selector styling */
+.tab-selector {
+  display: flex;
+  gap: 8px;
+}
+
+.tab-btn {
+  padding: 8px 16px;
+  border-radius: 4px;
+  border: 1px solid #e2e8f0;
+  background-color: transparent;
+  color: #2d3748;
+  cursor: pointer;
+  font-size: 0.9rem;
+  transition: all 0.2s ease;
+}
+
+.portfolio-panel.dark .tab-btn {
+  border-color: #4a5568;
+  color: #f7fafc;
+}
+
+.tab-btn:hover {
+  background-color: #edf2f7;
+}
+
+.portfolio-panel.dark .tab-btn:hover {
+  background-color: #2d3748;
+}
+
+.tab-btn.active {
+  background-color: #3182ce;
+  color: white;
+  border-color: #3182ce;
+}
+
+.portfolio-panel.dark .tab-btn.active {
+  background-color: #3182ce;
+  color: white;
+  border-color: #2c5282;
+}
+
 .balance-section {
   margin-bottom: 32px;
 }
@@ -209,6 +251,8 @@
 .portfolio-panel.dark .history-table th {
   color: #a0aec0;
 }
+
+
 
 .profit {
   color: #38a169;
