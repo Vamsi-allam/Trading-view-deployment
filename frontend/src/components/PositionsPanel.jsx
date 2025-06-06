@@ -21,12 +21,14 @@ const calculateLiquidationPrice = (entryPrice, leverage, direction, maintenanceM
 };
 
 // Add styled components for Material-UI
-const StyledDialog = styled(Dialog)(({ theme, darkMode }) => ({
+const StyledDialog = styled(Dialog, {
+  shouldForwardProp: (prop) => prop !== 'isDarkMode'
+})(({ theme, isDarkMode }) => ({
   '& .MuiDialog-paper': {
     borderRadius: '12px',
-    background: darkMode ? '#1a1a1a' : '#ffffff',
-    border: `1px solid ${darkMode ? '#2d3748' : '#e2e8f0'}`,
-    boxShadow: darkMode 
+    background: isDarkMode ? '#1a1a1a' : '#ffffff',
+    border: `1px solid ${isDarkMode ? '#2d3748' : '#e2e8f0'}`,
+    boxShadow: isDarkMode 
       ? '0 4px 20px rgba(0, 0, 0, 0.4)' 
       : '0 4px 20px rgba(0, 0, 0, 0.15)',
     maxWidth: '450px',
@@ -35,24 +37,42 @@ const StyledDialog = styled(Dialog)(({ theme, darkMode }) => ({
   }
 }));
 
-const StyledDialogContent = styled(DialogContent)(({ darkMode }) => ({
-  padding: '24px',
-  backgroundColor: darkMode ? '#1a1a1a' : '#ffffff',
-  color: darkMode ? '#f7fafc' : '#2d3748'
+// Add StyledDialogTitle to match the theme colors
+const StyledDialogTitle = styled(DialogTitle, {
+  shouldForwardProp: (prop) => prop !== 'isDarkMode'
+})(({ theme, isDarkMode }) => ({
+  padding: '20px 24px',
+  color: isDarkMode ? '#f7fafc' : '#2d3748',
+  borderBottom: `1px solid ${isDarkMode ? '#2d3748' : '#e2e8f0'}`,
+  '& span': {
+    display: 'inline-flex',
+    alignItems: 'center',
+    gap: '8px'
+  }
 }));
 
-const PreviewRow = styled('div')(({ darkMode }) => ({
+const StyledDialogContent = styled(DialogContent, {
+  shouldForwardProp: (prop) => prop !== 'isDarkMode'
+})(({ isDarkMode }) => ({
+  padding: '24px',
+  backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
+  color: isDarkMode ? '#f7fafc' : '#2d3748'
+}));
+
+const PreviewRow = styled('div', {
+  shouldForwardProp: (prop) => prop !== 'isDarkMode'
+})(({ isDarkMode }) => ({
   display: 'flex',
   justifyContent: 'space-between',
   padding: '12px 0',
-  borderBottom: `1px solid ${darkMode ? '#2d3748' : '#e2e8f0'}`,
+  borderBottom: `1px solid ${isDarkMode ? '#2d3748' : '#e2e8f0'}`,
   '& .label': {
-    color: darkMode ? '#a0aec0' : '#718096',
+    color: isDarkMode ? '#a0aec0' : '#718096',
     fontSize: '0.9rem'
   },
   '& .value': {
     fontWeight: 500,
-    color: darkMode ? '#f7fafc' : '#2d3748'
+    color: isDarkMode ? '#f7fafc' : '#2d3748'
   }
 }));
 
@@ -291,39 +311,38 @@ const PositionsPanel = () => {
         onClose={() => setModifyDialog({ open: false, position: null })}
         maxWidth="sm"
         fullWidth
-        darkMode={isDarkMode}
+        isDarkMode={isDarkMode}
       >
-        <DialogTitle>
+        <StyledDialogTitle isDarkMode={isDarkMode}>
           <span style={{ 
             color: modifyDialog.position?.direction === 'buy' ? '#38a169' : '#e53e3e',
-            marginRight: '8px' 
           }}>
             {modifyDialog.position?.direction === 'buy' ? '⬆' : '⬇'}
+            Modify Position - {modifyDialog.position?.symbol}
           </span>
-          Modify Position - {modifyDialog.position?.symbol}
-        </DialogTitle>
+        </StyledDialogTitle>
 
-        <StyledDialogContent darkMode={isDarkMode}>
-          <PreviewRow darkMode={isDarkMode}>
+        <StyledDialogContent isDarkMode={isDarkMode}>
+          <PreviewRow isDarkMode={isDarkMode}>
             <span className="label">Entry Price</span>
             <span className="value">
               ${formatPrice(modifyDialog.position?.entryPrice || 0, modifyDialog.position?.symbol)}
             </span>
           </PreviewRow>
 
-          <PreviewRow darkMode={isDarkMode}>
+          <PreviewRow isDarkMode={isDarkMode}>
             <span className="label">Current Price</span>
             <span className="value">
               ${formatPrice(modifyDialog.position?.currentPrice || 0, modifyDialog.position?.symbol)}
             </span>
           </PreviewRow>
 
-          <PreviewRow darkMode={isDarkMode}>
+          <PreviewRow isDarkMode={isDarkMode}>
             <span className="label">Leverage</span>
             <span className="value">{modifyDialog.position?.leverage}×</span>
           </PreviewRow>
 
-          <PreviewRow darkMode={isDarkMode}>
+          <PreviewRow isDarkMode={isDarkMode}>
             <span className="label">Est. Liquidation</span>
             <span className="value" style={{ color: '#e53e3e' }}>
               ${formatPrice(calculateLiquidationPrice(
@@ -336,9 +355,9 @@ const PositionsPanel = () => {
 
           <div className="modify-inputs" style={{ marginTop: '20px' }}>
             <div className="input-group">
-              <label>Take Profit</label>
+              <label style={{ color: isDarkMode ? '#f7fafc' : '#2d3748' }}>Take Profit</label>
               <div className="input-with-prefix">
-                <span className="input-prefix">$</span>
+                <span className="input-prefix" style={{ color: isDarkMode ? '#f7fafc' : '#2d3748' }}>$</span>
                 <input
                   type="number"
                   value={newTakeProfit}
@@ -361,9 +380,9 @@ const PositionsPanel = () => {
             </div>
 
             <div className="input-group" style={{ marginTop: '16px' }}>
-              <label>Stop Loss</label>
+              <label style={{ color: isDarkMode ? '#f7fafc' : '#2d3748' }}>Stop Loss</label>
               <div className="input-with-prefix">
-                <span className="input-prefix">$</span>
+                <span className="input-prefix" style={{ color: isDarkMode ? '#f7fafc' : '#2d3748' }}>$</span>
                 <input
                   type="number"
                   value={newStopLoss}
