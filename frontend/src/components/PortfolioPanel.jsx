@@ -174,7 +174,8 @@ const PortfolioPanel = () => {
                   <th>Symbol</th>
                   <th>Type</th>
                   <th>Size</th>
-                  <th>Price</th>
+                  <th>Entry Price</th>
+                  <th>Close Price</th>
                   <th>PnL</th>
                 </tr>
               </thead>
@@ -188,7 +189,12 @@ const PortfolioPanel = () => {
                       {trade.direction.toUpperCase()}
                     </td>
                     <td>{trade.quantity}</td>
-                    <td>${parseFloat(trade.price || trade.entryPrice).toFixed(2)}</td>
+                    <td>${parseFloat(trade.entryPrice || trade.price).toFixed(2)}</td>
+                    <td>
+                      {trade.type === 'close' 
+                        ? `$${parseFloat(trade.closePrice || 0).toFixed(2)}` 
+                        : '-'}
+                    </td>
                     <td>
                       {trade.type === 'close' ? (
                         <span className={trade.pnl >= 0 ? 'profit' : 'loss'}>
