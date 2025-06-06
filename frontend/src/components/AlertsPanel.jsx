@@ -14,7 +14,7 @@ import './AlertsPanel.css'
 
 // Update function signature to accept compact prop with default value
 const AlertsPanel = ({ compact = false }) => {
-  const { alerts, setAlerts, resetTriggeredAlert, triggeredAlerts, createAlertWithoutRefresh, updateAlertWithoutRefresh } = useAlerts()
+  const { alerts, setAlerts, resetTriggeredAlert, triggeredAlerts, createAlertWithoutRefresh, updateAlertWithoutRefresh, deleteAlertLocal } = useAlerts()
   const { isDarkMode } = useTheme()
   const [newAlert, setNewAlert] = useState({
     symbol: 'BTCUSDT',
@@ -107,16 +107,24 @@ const AlertsPanel = ({ compact = false }) => {
     const alertId = confirmDialog.alertId;
     
     try {
-      await deleteAlert(alertId);
-      showSuccess('Alert deleted successfully');
+      // Try to delete via API first
+      try {
+        await deleteAlert(alertId);
+        showSuccess('Alert deleted successfully');
+      } catch (apiError) {
+        // If API call fails, show a warning but continue with local deletion
+        console.warn('API deletion failed, deleting locally only', apiError);
+        showError(`Warning: Alert removed locally but server sync failed`);
+      }
       
       // Close the dialog
       setConfirmDialog({ open: false, alertId: null });
       
-      // Update local state
-      setAlerts(prev => prev.filter(a => a.id !== alertId));
+      // Delete locally using the function from context
+      deleteAlertLocal(alertId);
     } catch (error) {
-      showError(`Failed to delete alert: ${error.message}`);
+      showError(`Error deleting alert: ${error.message}`);
+      setConfirmDialog({ open: false, alertId: null });
     }
   };
   
@@ -310,49 +318,57 @@ const AlertsPanel = ({ compact = false }) => {
             </tr>
           </thead>
           <tbody>
-            {alerts.map(alert => (
-              <tr key={alert.id} className={confirmDialog.alertId === alert.id ? "highlighted-row" : ""}>
-                <td>{alert.symbol}</td>
-                <td>{alert.type} {alert.condition}</td>
-                <td>{alert.value}</td>
-                <td>{alert.notifyDiscord ? "Yes" : "No"}</td>
-                <td>
-                  {alert.status}
-                  {triggeredAlerts && triggeredAlerts[alert.id] && 
-                    <span className="triggered-indicator"> (Triggered)</span>
-                  }
-                </td>
-                <td>
-                  <div className="action-buttons">
-                    <button
-                      className="btn-icon edit-btn"
-                      onClick={() => handleEditClick(alert)}
-                      title="Edit alert"
-                    >
-                      <FaEdit />
-                    </button>
-                    
-                    {triggeredAlerts && triggeredAlerts[alert.id] && (
+            {alerts && alerts.length > 0 ? (
+              alerts.map(alert => (
+                <tr key={alert.id} className={confirmDialog.alertId === alert.id ? "highlighted-row" : ""}>
+                  <td>{alert.symbol}</td>
+                  <td>{alert.type} {alert.condition}</td>
+                  <td>{alert.value}</td>
+                  <td>{alert.notifyDiscord ? "Yes" : "No"}</td>
+                  <td>
+                    {alert.status}
+                    {triggeredAlerts && triggeredAlerts[alert.id] && 
+                      <span className="triggered-indicator"> (Triggered)</span>
+                    }
+                  </td>
+                  <td>
+                    <div className="action-buttons">
                       <button
-                        className="btn-icon reset-btn"
-                        onClick={() => handleResetAlert(alert.id)}
-                        title="Reset alert"
+                        className="btn-icon edit-btn"
+                        onClick={() => handleEditClick(alert)}
+                        title="Edit alert"
                       >
-                        <FaBell />
+                        <FaEdit />
                       </button>
-                    )}
-                    
-                    <button
-                      className="btn-icon delete-btn"
-                      onClick={() => handleDeleteClick(alert.id)}
-                      title="Delete alert"
-                    >
-                      <FaTrash />
-                    </button>
-                  </div>
+                      
+                      {triggeredAlerts && triggeredAlerts[alert.id] && (
+                        <button
+                          className="btn-icon reset-btn"
+                          onClick={() => handleResetAlert(alert.id)}
+                          title="Reset alert"
+                        >
+                          <FaBell />
+                        </button>
+                      )}
+                      
+                      <button
+                        className="btn-icon delete-btn"
+                        onClick={() => handleDeleteClick(alert.id)}
+                        title="Delete alert"
+                      >
+                        <FaTrash />
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              ))
+            ) : (
+              <tr>
+                <td colSpan="6" style={{ textAlign: 'center', padding: '20px' }}>
+                  No alerts created yet.
                 </td>
               </tr>
-            ))}
+            )}
           </tbody>
         </table>
       </div>
