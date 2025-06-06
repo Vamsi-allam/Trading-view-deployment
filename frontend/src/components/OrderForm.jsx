@@ -80,13 +80,15 @@ const calculateLiquidationPrice = (entryPrice, leverage, direction, maintenanceM
   }
 };
 
-// Styled components for Material-UI
-const StyledDialog = styled(Dialog)(({ theme, darkMode }) => ({
+// Styled components for Material-UI - update to filter custom props
+const StyledDialog = styled(Dialog, {
+  shouldForwardProp: (prop) => prop !== 'isDarkMode'
+})(({ theme, isDarkMode }) => ({
   '& .MuiDialog-paper': {
     borderRadius: '12px',
-    background: darkMode ? '#1a1a1a' : '#ffffff',
-    border: `1px solid ${darkMode ? '#2d3748' : '#e2e8f0'}`,
-    boxShadow: darkMode 
+    background: isDarkMode ? '#1a1a1a' : '#ffffff',
+    border: `1px solid ${isDarkMode ? '#2d3748' : '#e2e8f0'}`,
+    boxShadow: isDarkMode 
       ? '0 4px 20px rgba(0, 0, 0, 0.4)' 
       : '0 4px 20px rgba(0, 0, 0, 0.15)',
     maxWidth: '450px',
@@ -94,15 +96,17 @@ const StyledDialog = styled(Dialog)(({ theme, darkMode }) => ({
     margin: '16px'
   },
   '& .MuiBackdrop-root': {
-    backgroundColor: darkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.5)',
+    backgroundColor: isDarkMode ? 'rgba(0, 0, 0, 0.8)' : 'rgba(0, 0, 0, 0.5)',
     backdropFilter: 'blur(3px)'
   }
 }));
 
-const StyledDialogTitle = styled(DialogTitle)(({ theme, darkMode }) => ({
-  borderBottom: `1px solid ${darkMode ? '#2d3748' : '#e2e8f0'}`,
+const StyledDialogTitle = styled(DialogTitle, {
+  shouldForwardProp: (prop) => prop !== 'isDarkMode'
+})(({ theme, isDarkMode }) => ({
+  borderBottom: `1px solid ${isDarkMode ? '#2d3748' : '#e2e8f0'}`,
   padding: '24px',
-  color: darkMode ? '#f7fafc' : '#2d3748',
+  color: isDarkMode ? '#f7fafc' : '#2d3748',
   '& h2': {
     fontSize: '1.25rem',
     fontWeight: 600,
@@ -113,29 +117,33 @@ const StyledDialogTitle = styled(DialogTitle)(({ theme, darkMode }) => ({
   }
 }));
 
-const StyledDialogContent = styled(DialogContent)(({ theme, darkMode }) => ({
+const StyledDialogContent = styled(DialogContent, {
+  shouldForwardProp: (prop) => prop !== 'isDarkMode'
+})(({ theme, isDarkMode }) => ({
   padding: '24px',
   '& > div:not(:last-child)': {
     marginBottom: '12px'
   },
-  backgroundColor: darkMode ? '#1a1a1a' : '#ffffff',
+  backgroundColor: isDarkMode ? '#1a1a1a' : '#ffffff',
 }));
 
-const PreviewRow = styled('div')(({ theme, darkMode }) => ({
+const PreviewRow = styled('div', {
+  shouldForwardProp: (prop) => prop !== 'isDarkMode'
+})(({ theme, isDarkMode }) => ({
   display: 'flex',
   justifyContent: 'space-between',
   padding: '12px 0',
-  borderBottom: `1px solid ${darkMode ? '#2d3748' : '#e2e8f0'}`,
+  borderBottom: `1px solid ${isDarkMode ? '#2d3748' : '#e2e8f0'}`,
   '&:last-child': {
     borderBottom: 'none'
   },
   '& .label': {
-    color: darkMode ? '#a0aec0' : '#718096',
+    color: isDarkMode ? '#a0aec0' : '#718096',
     fontSize: '0.9rem'
   },
   '& .value': {
     fontWeight: 500,
-    color: darkMode ? '#f7fafc' : '#2d3748'
+    color: isDarkMode ? '#f7fafc' : '#2d3748'
   }
 }));
 
@@ -367,7 +375,7 @@ const OrderForm = ({ symbol, currentPrice, direction = 'buy', onClose }) => {
                 <input
                   type="number"
                   id="quantity"
-                  value={parseFloat(quantity).toFixed(5)}
+                  value={quantity && !isNaN(parseFloat(quantity)) ? parseFloat(quantity).toFixed(5) : "0.00000"}
                   readOnly
                   disabled
                 />
@@ -479,9 +487,9 @@ const OrderForm = ({ symbol, currentPrice, direction = 'buy', onClose }) => {
         onClose={() => setShowConfirmation(false)}
         maxWidth="sm"
         fullWidth
-        darkMode={isDarkMode}
+        isDarkMode={isDarkMode}
       >
-        <StyledDialogTitle darkMode={isDarkMode}>
+        <StyledDialogTitle isDarkMode={isDarkMode}>
           <span style={{ 
             color: direction === 'buy' ? '#38a169' : '#e53e3e',
             marginRight: '8px' 
@@ -490,12 +498,12 @@ const OrderForm = ({ symbol, currentPrice, direction = 'buy', onClose }) => {
           </span>
           Confirm {direction === 'buy' ? 'Buy' : 'Sell'} {orderType} Order
         </StyledDialogTitle>
-        <StyledDialogContent darkMode={isDarkMode}>
-          <PreviewRow darkMode={isDarkMode}>
+        <StyledDialogContent isDarkMode={isDarkMode}>
+          <PreviewRow isDarkMode={isDarkMode}>
             <span className="label">Symbol</span>
             <span className="value">{symbol}</span>
           </PreviewRow>
-          <PreviewRow darkMode={isDarkMode}>
+          <PreviewRow isDarkMode={isDarkMode}>
             <span className="label">Order Type</span>
             <span className="value" style={{ 
               color: orderType === 'market' ? '#3182ce' : '#6b46c1'
@@ -503,23 +511,23 @@ const OrderForm = ({ symbol, currentPrice, direction = 'buy', onClose }) => {
               {orderType.toUpperCase()}
             </span>
           </PreviewRow>
-          <PreviewRow darkMode={isDarkMode}>
+          <PreviewRow isDarkMode={isDarkMode}>
             <span className="label">Position Size</span>
             <span className="value">{quantity} {symbol.replace('USDT', '')}</span>
           </PreviewRow>
-          <PreviewRow darkMode={isDarkMode}>
+          <PreviewRow isDarkMode={isDarkMode}>
             <span className="label">Entry Price</span>
             <span className="value" style={{ fontFamily: 'monospace' }}>
               ${formatPrice(orderType === 'market' ? currentPrice : limitPrice, symbol)}
             </span>
           </PreviewRow>
-          <PreviewRow darkMode={isDarkMode}>
+          <PreviewRow isDarkMode={isDarkMode}>
             <span className="label">Leverage</span>
             <span className="value" style={{ color: parseInt(leverage) > 10 ? '#e53e3e' : undefined }}>
               {leverage}×
             </span>
           </PreviewRow>
-          <PreviewRow darkMode={isDarkMode}>
+          <PreviewRow isDarkMode={isDarkMode}>
             <span className="label">Required Margin</span>
             <span className="value" style={{ fontFamily: 'monospace' }}>
               ${calculatedMargin.toLocaleString(undefined, {
@@ -528,7 +536,7 @@ const OrderForm = ({ symbol, currentPrice, direction = 'buy', onClose }) => {
               })}
             </span>
           </PreviewRow>
-          <PreviewRow darkMode={isDarkMode}>
+          <PreviewRow isDarkMode={isDarkMode}>
             <span className="label">Est. Liquidation</span>
             <span className="value" style={{ 
               color: '#e53e3e',
