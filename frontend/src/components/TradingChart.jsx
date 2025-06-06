@@ -1,15 +1,12 @@
-import { useState, useEffect, useRef, useMemo } from 'react';
+import { useState, useEffect, useRef } from 'react';
 import { createChart } from 'lightweight-charts';
 import { useTheme } from '../context/ThemeContext';
 import { useAlerts } from '../context/AlertsContext';
-import { useIndicators } from '../context/IndicatorsContext';
-import { useTradingContext } from '../context/TradingContext'; // Add this import
+import { useTradingContext } from '../context/TradingContext';
 import { fetchCandles, subscribeToPriceUpdates } from '../services/api';
 import { useSnackbar } from '../context/SnackbarContext';
 import './TradingChart.css';
-import IndicatorSelector from './IndicatorSelector';
-import IndicatorManager from './IndicatorManager';
-import OrderForm from './OrderForm'; // Add this import
+import OrderForm from './OrderForm';
 
 const TradingChart = ({ sidebarOpen }) => {
   const chartContainerRef = useRef(null);
@@ -29,16 +26,12 @@ const TradingChart = ({ sidebarOpen }) => {
   const { checkAlertsAgainstPrice } = useAlerts();
   const initialLoadRef = useRef(true);
   const lastPriceRef = useRef(null);
-  const priceCheckIntervalRef = useRef(null);
   const isMountedRef = useRef(true);
   
-  // Get indicators context BEFORE any references to activeIndicators
-  const { activeIndicators, addIndicator, removeIndicator, updateIndicator } = useIndicators();
-  
-  // Add state for indicator selector dialog
-  const [indicatorSelectorOpen, setIndicatorSelectorOpen] = useState(false);
-  // Define indicatorSeriesRef here so it's accessible throughout the component
-  const indicatorSeriesRef = useRef({});
+  // EMA series refs
+  const ema9SeriesRef = useRef(null);
+  const ema21SeriesRef = useRef(null);
+  const ema200SeriesRef = useRef(null);
   
   // Add state for order form
   const [showOrderForm, setShowOrderForm] = useState(false);
@@ -122,47 +115,31 @@ const TradingChart = ({ sidebarOpen }) => {
       if (!isMountedRef.current) return;
       if (symbolRef.current !== symbol) return;
       if (!candleSeriesRef.current) return;
-      
-      // Update the price display
+
+      // Update price and related items
       setCurrentPrice(price);
       lastPriceRef.current = price;
-      
-      // Update position PnL and check limit orders
       updatePositionPnl(symbol, price);
       checkLimitOrders(symbol, price);
-      
-      // Process candle updates
+
       try {
-        // Get last candle from our stored ref
         const lastCandle = lastCandleRef.current;
         if (!lastCandle) return;
         
-        // Update current candle data for display
-        setCurrentCandleData({
-          open: lastCandle.open,
-          high: Math.max(lastCandle.high, price),
-          low: Math.min(lastCandle.low, price),
-          close: price,
-          change: parseFloat(((price - lastCandle.open) / lastCandle.open * 100).toFixed(2)),
-          changePoints: parseFloat((price - lastCandle.open).toFixed(getDecimalPrecision(price)))
-        });
-        
-        // Calculate interval in seconds based on timeframe
-        let intervalSeconds = 60; // 1m
+        // Calculate interval seconds based on timeframe
+        let intervalSeconds = 60;
         if (timeframe === '5m') intervalSeconds = 300;
         if (timeframe === '15m') intervalSeconds = 900;
         if (timeframe === '1h') intervalSeconds = 3600;
         if (timeframe === '4h') intervalSeconds = 14400;
         if (timeframe === '1d') intervalSeconds = 86400;
         
-        const currentTime = Math.floor(Date.now() / 1000);
+        const currentTimeSec = Math.floor(Date.now() / 1000);
+        const currentCandleTime = Math.floor(currentTimeSec / intervalSeconds) * intervalSeconds;
         
-        // Calculate the correct candle time based on the current time and interval
-        const currentCandleTime = Math.floor(currentTime / intervalSeconds) * intervalSeconds;
-        
-        // If the last candle is from a previous interval, create a new one
+        // If the last candle is from a previous interval, create a new one;
+        // otherwise update the last candle.
         if (lastCandle.time < convertToIndianTime(currentCandleTime)) {
-          // Create a new candle with Indian time
           const newCandle = {
             time: convertToIndianTime(currentCandleTime),
             open: lastCandle.close,
@@ -171,46 +148,38 @@ const TradingChart = ({ sidebarOpen }) => {
             close: price,
             volume: 0
           };
-          
-          // Update our stored ref with the new candle
           lastCandleRef.current = newCandle;
-          
-          try {
-            candleSeriesRef.current.update(newCandle);
-          } catch (error) {
-            console.error('Error updating candle:', error);
-          }
+          candleDataRef.current.push(newCandle);
+          candleSeriesRef.current.update(newCandle);
         } else {
-          // Update the current candle
           const updatedCandle = {
             ...lastCandle,
             high: Math.max(lastCandle.high, price),
             low: Math.min(lastCandle.low, price),
             close: price
           };
-          
-          // Update our stored ref
           lastCandleRef.current = updatedCandle;
-          
-          try {
-            // Add visual feedback for candle updates
-            candleSeriesRef.current.update(updatedCandle);
-          } catch (error) {
-            console.error('Error updating existing candle:', error);
-          }
+          candleDataRef.current[candleDataRef.current.length - 1] = updatedCandle;
+          candleSeriesRef.current.update(updatedCandle);
         }
         
+        // Recalculate EMAs using the updated candle data
+        const ema9Data = calculateEMA(candleDataRef.current, 9);
+        const ema21Data = calculateEMA(candleDataRef.current, 21);
+        const ema200Data = calculateEMA(candleDataRef.current, 200);
+        ema9SeriesRef.current.setData(ema9Data);
+        ema21SeriesRef.current.setData(ema21Data);
+        ema200SeriesRef.current.setData(ema200Data);
+        
         // Update current candle data for display
-        if (lastCandle) {
-          setCurrentCandleData({
-            open: lastCandle.open,
-            high: lastCandle.high, 
-            low: lastCandle.low,
-            close: price,  // Use current price as close
-            change: parseFloat(((price - lastCandle.open) / lastCandle.open * 100).toFixed(2)),
-            changePoints: parseFloat((price - lastCandle.open).toFixed(getDecimalPrecision(price)))
-          });
-        }
+        setCurrentCandleData({
+          open: lastCandle.open,
+          high: lastCandle.high,
+          low: lastCandle.low,
+          close: price,
+          change: parseFloat(((price - lastCandle.open) / lastCandle.open * 100).toFixed(2)),
+          changePoints: parseFloat((price - lastCandle.open).toFixed(getDecimalPrecision(price)))
+        });
       } catch (error) {
         console.error('Error handling candle update:', error);
       }
@@ -347,7 +316,7 @@ const TradingChart = ({ sidebarOpen }) => {
             width: chartDiv.clientWidth || 800,
             height: 500,
             layout: {
-              background: { color: isDarkMode ? '#000000' : '#ffffff' }, // Changed from #131722 to #000000
+              background: { color: isDarkMode ? '#000000' : '#ffffff' },
               textColor: isDarkMode ? '#D9D9D9' : '#191919',
             },
             grid: {
@@ -371,10 +340,7 @@ const TradingChart = ({ sidebarOpen }) => {
           
           chartInstanceRef.current = chart;
           
-          // Debug output to inspect chart object
-          console.log('Chart methods:', Object.keys(chart));
-          
-          // Try all possible ways to create a candlestick series
+          // Create candlestick series
           let candleSeries;
           
           if (typeof chart.addCandlestickSeries === 'function') {
@@ -386,19 +352,36 @@ const TradingChart = ({ sidebarOpen }) => {
               wickDownColor: '#ef5350',
               priceFormat: priceFormat
             });
-          } else if (chart.series && typeof chart.series.candlestick === 'function') {
-            candleSeries = chart.series.candlestick({
-              upColor: '#26a69a', 
-              downColor: '#ef5350',
-              borderVisible: false,
-              wickUpColor: '#26a69a', 
-              wickDownColor: '#ef5350'
-            });
           } else {
             throw new Error('Could not find method to create candlestick series');
           }
           
           candleSeriesRef.current = candleSeries;
+          
+          // Create EMA series
+          ema9SeriesRef.current = chart.addLineSeries({
+            color: '#00FF00',
+            lineWidth: 1,
+            priceLineVisible: false,
+            //title: 'EMA 9',
+          });
+          
+          ema21SeriesRef.current = chart.addLineSeries({
+            color: '#FF9800',
+            lineWidth: 1,
+            priceLineVisible: false,
+            //title: 'EMA 21',
+          });
+          
+          ema200SeriesRef.current = chart.addLineSeries({
+            color: '#2196F3',
+            lineWidth: 2,
+            priceLineVisible: false,
+            //title: 'EMA 200',
+          });
+
+          // Debug output to inspect chart object
+          console.log('Chart methods:', Object.keys(chart));
           
           // Debug and fix the hover functionality
           console.log("Setting up crosshair hover", { candleSeries });
@@ -442,28 +425,6 @@ const TradingChart = ({ sidebarOpen }) => {
               try {
                 candleData = param.seriesData.get(candleSeries);
                 //console.log("Got data from seriesData.get", candleData);
-              } catch (e) {}
-            }
-            
-            // Fallback #2: Try to use internal ID
-            if (!candleData && candleSeries._internal_id && param.seriesData) {
-              try {
-                candleData = param.seriesData.get(candleSeries._internal_id);
-                //console.log("Got data from internal ID", candleData);
-              } catch (e) {}
-            }
-            
-            // Fallback #3: Try to search existing data
-            if (!candleData && time) {
-              // Try to find the candle in our data
-              try {
-                // Request candle at specific time from series if possible
-                if (typeof candleSeries.dataByIndex === 'function') {
-                  const dataIndex = candleSeries.barsInLogicalRange(time, time);
-                  if (dataIndex) {
-                    candleData = candleSeries.dataByIndex(dataIndex.from);
-                  }
-                }
               } catch (e) {}
             }
             
@@ -522,11 +483,20 @@ const TradingChart = ({ sidebarOpen }) => {
               volume: Number(candle.volume || 0)
             }));
             
-            // Store the formatted data in the ref for indicators to use
+            // Store the formatted data in the ref
             candleDataRef.current = formattedData;
             
             if (formattedData.length > 0) {
               candleSeries.setData(formattedData);
+              
+              // Calculate and add EMA data
+              const ema9Data = calculateEMA(formattedData, 9);
+              const ema21Data = calculateEMA(formattedData, 21);
+              const ema200Data = calculateEMA(formattedData, 200);
+              
+              ema9SeriesRef.current.setData(ema9Data);
+              ema21SeriesRef.current.setData(ema21Data);
+              ema200SeriesRef.current.setData(ema200Data);
               
               // Set current price from last candle
               const lastCandle = formattedData[formattedData.length - 1];
@@ -558,25 +528,10 @@ const TradingChart = ({ sidebarOpen }) => {
                   // Set the visible range
                   timeScale.setVisibleRange(visibleRange);
                 }
-                
-                // Reapply indicators after chart is fully set up with data
-                if (activeIndicators.length > 0) {
-                  console.log(`Reapplying ${activeIndicators.length} indicators after symbol change to ${symbol}`);
-                  // Need a small delay to ensure chart is ready
-                  setTimeout(() => {
-                    activeIndicators.forEach(indicator => {
-                      try {
-                        addIndicatorToChart(indicator);
-                      } catch (error) {
-                        console.error(`Error adding indicator ${indicator.name} after symbol change:`, error);
-                      }
-                    });
-                  }, 100);
-                }
-              }, 100); // Short delay to ensure chart is fully rendered
+              }, 100);
               
               // Show success message when chart loads
-              showSuccess(`${symbol} chart data loaded successfully`);
+              showSuccess(`${symbol} chart data loaded successfully with EMAs`);
             }
           } catch (error) {
             console.error('Failed to load chart data:', error);
@@ -612,14 +567,13 @@ const TradingChart = ({ sidebarOpen }) => {
       
       // Load the chart
       loadChart();
-    }, 300); // Longer delay to ensure DOM is ready
+    }, 300);
     
     return () => {
       clearTimeout(initTimeout);
-      // ...existing code...
     };
   }, [symbol, timeframe, isDarkMode, showError, showSuccess]);
-  
+
   // Separate effect to handle sidebar toggling - make sure chart exists before modifying
   useEffect(() => {
     // Check if chart exists
@@ -678,37 +632,6 @@ const TradingChart = ({ sidebarOpen }) => {
     showInfo(`Changing to ${newSymbol.replace('USDT', '/USDT')}`);
     setSymbol(newSymbol);
     symbolRef.current = newSymbol;
-    
-    // Clear indicators when changing symbols - they'll be re-added after data loads
-    if (chartInstanceRef.current) {
-      // Clear existing indicators first
-      Object.keys(indicatorSeriesRef.current).forEach(instanceId => {
-        try {
-          const series = indicatorSeriesRef.current[instanceId];
-          if (series) {
-            if (typeof series.remove === 'function') {
-              series.remove();
-            } else if (series.main || series.upper || series.macdLine) {
-              // Complex indicator with multiple components
-              Object.values(series).forEach(s => {
-                if (s && typeof s !== 'function' && chartInstanceRef.current) {
-                  try {
-                    chartInstanceRef.current.removeSeries(s);
-                  } catch (err) {}
-                }
-              });
-            } else {
-              chartInstanceRef.current.removeSeries(series);
-            }
-          }
-        } catch (error) {
-          console.error(`Error removing indicator ${instanceId}:`, error);
-        }
-      });
-      
-      // Reset the series references
-      indicatorSeriesRef.current = {};
-    }
   };
 
   // Add helper function to determine decimal precision based on price
@@ -794,331 +717,43 @@ const TradingChart = ({ sidebarOpen }) => {
     }
   };
   
-  // Open indicator selector
-  const handleOpenIndicatorSelector = () => {
-    // Add a small delay to ensure button blur happens before dialog opens
-    setTimeout(() => {
-      setIndicatorSelectorOpen(true);
-    }, 10);
-  };
-  
-  // Close indicator selector
-  const handleCloseIndicatorSelector = () => {
-    setIndicatorSelectorOpen(false);
-  };
-  
-  // Update to use context functions
-  const handleAddIndicator = (indicator) => {
-    // Log the indicator being added
-    console.log(`Adding indicator: ${indicator.name}`, indicator);
-    
-    // Add to indicators context
-    const newIndicator = addIndicator(indicator);
-    
-    // Add to chart if chart exists
-    if (chartInstanceRef.current && candleSeriesRef.current) {
-      try {
-        console.log("Candle data length:", candleDataRef.current.length);
-        if (!candleDataRef.current || candleDataRef.current.length === 0) {
-          console.error("No candle data available for indicators");
-          showError(`Failed to add ${indicator.name}: No candle data available`);
-          return;
-        }
-
-        addIndicatorToChart(newIndicator);
-        showSuccess(`Added ${indicator.name} to chart`);
-      } catch (error) {
-        console.error('Error adding indicator to chart:', error);
-        showError(`Failed to add ${indicator.name} to chart: ${error.message}`);
-      }
-    } else {
-      console.error('Chart not initialized');
-      showError(`Failed to add indicator: Chart not initialized`);
-    }
-  };
-  
-  // Update removeIndicator to use context with better error handling
-  const handleRemoveIndicator = (instanceId) => {
-    // Find the indicator to remove
-    const indicatorToRemove = activeIndicators.find(ind => ind.instanceId === instanceId);
-    
-    if (indicatorToRemove) {
-      // Remove from context
-      removeIndicator(instanceId);
-      
-      // Remove from chart
-      if (chartInstanceRef.current) {
-        try {
-          const series = indicatorSeriesRef.current[instanceId];
-          
-          // Only try to remove if the series exists
-          if (series) {
-            if (typeof series.remove === 'function') {
-              // Use custom remove function if available
-              series.remove();
-            } else if (series.main || series.upper || series.macdLine) {
-              // Handle complex indicator objects with multiple series
-              if (series.main) chartInstanceRef.current.removeSeries(series.main);
-              if (series.upper) chartInstanceRef.current.removeSeries(series.upper);
-              if (series.middle) chartInstanceRef.current.removeSeries(series.middle);
-              if (series.lower) chartInstanceRef.current.removeSeries(series.lower);
-              if (series.overSoldLine) chartInstanceRef.current.removeSeries(series.overSoldLine);
-              if (series.overBoughtLine) chartInstanceRef.current.removeSeries(series.overBoughtLine);
-              if (series.macdLine) chartInstanceRef.current.removeSeries(series.macdLine);
-              if (series.signalLine) chartInstanceRef.current.removeSeries(series.signalLine);
-              if (series.histogram) chartInstanceRef.current.removeSeries(series.histogram);
-            } else {
-              // For simple series
-              chartInstanceRef.current.removeSeries(series);
-            }
-            
-            // Remove from the ref object
-            delete indicatorSeriesRef.current[instanceId];
-            showInfo(`Removed ${indicatorToRemove.name} from chart`);
-          } else {
-            console.log(`No series found for indicator ${instanceId}, just removing from state`);
-            showInfo(`Removed ${indicatorToRemove.name}`);
-          }
-        } catch (error) {
-          console.error('Error removing indicator from chart:', error);
-          showError(`Failed to remove indicator: ${error.message}`);
-          
-          // Still remove from our ref object even if removal failed
-          delete indicatorSeriesRef.current[instanceId];
-        }
-      }
-    }
-  };
-  
-  // Update to use context
-  const handleUpdateIndicator = (updatedIndicator) => {
-    try {
-      // Update in context
-      updateIndicator(updatedIndicator);
-      
-      // Update on chart
-      if (chartInstanceRef.current) {
-        const existingSeries = indicatorSeriesRef.current[updatedIndicator.instanceId];
-        
-        if (existingSeries) {
-          // Handle both simple series and complex series objects with remove method
-          try {
-            if (typeof existingSeries.remove === 'function') {
-              existingSeries.remove();
-            } else {
-              chartInstanceRef.current.removeSeries(existingSeries);
-            }
-            
-            // Add the updated indicator
-            addIndicatorToChart(updatedIndicator);
-            showSuccess(`Updated ${updatedIndicator.name} settings`);
-          } catch (error) {
-            console.error('Error updating indicator series:', error);
-            showError(`Failed to update indicator: ${error.message}`);
-          }
-        } else {
-          // If no existing series found (shouldn't happen), just add it
-          addIndicatorToChart(updatedIndicator);
-          showSuccess(`Added ${updatedIndicator.name} to chart`);
-        }
-      }
-    } catch (error) {
-      console.error('Error updating indicator:', error);
-      showError(`Failed to update indicator: ${error.message}`);
-    }
-  };
-  
-  // Add effect to add all active indicators when symbol changes or component mounts
-  useEffect(() => {
-    // Don't try to add indicators until we have chart and data
-    if (!chartInstanceRef.current || !candleSeriesRef.current || !candleDataRef.current || candleDataRef.current.length === 0) {
-      return;
-    }
-
-    // Skip this effect when symbols are changing - we'll handle that in the chart init effect
-    if (symbolRef.current !== symbol) {
-      return;
-    }
-
-    console.log(`Indicator list changed: Adding ${activeIndicators.length} indicators to ${symbol} chart`);
-    
-    // Clear existing indicators from the chart with better error handling
-    Object.keys(indicatorSeriesRef.current).forEach(instanceId => {
-      try {
-        const series = indicatorSeriesRef.current[instanceId];
-        if (!series) {
-          console.log(`No series found for indicator ${instanceId}, skipping removal`);
-          return; // Skip this iteration if series is undefined
-        }
-        
-        if (chartInstanceRef.current) {
-          // Handle indicator series that have a custom remove function
-          if (typeof series.remove === 'function') {
-            series.remove();
-          } else if (series.main || series.upper || series.macdLine) {
-            // Handle complex indicator objects with multiple series
-            if (series.main) chartInstanceRef.current.removeSeries(series.main);
-            if (series.upper) chartInstanceRef.current.removeSeries(series.upper);
-            if (series.middle) chartInstanceRef.current.removeSeries(series.middle);
-            if (series.lower) chartInstanceRef.current.removeSeries(series.lower);
-            if (series.overSoldLine) chartInstanceRef.current.removeSeries(series.overSoldLine);
-            if (series.overBoughtLine) chartInstanceRef.current.removeSeries(series.overBoughtLine);
-            if (series.macdLine) chartInstanceRef.current.removeSeries(series.macdLine);
-            if (series.signalLine) chartInstanceRef.current.removeSeries(series.signalLine);
-            if (series.histogram) chartInstanceRef.current.removeSeries(series.histogram);
-          } else {
-            // For simple series
-            chartInstanceRef.current.removeSeries(series);
-          }
-        }
-      } catch (error) {
-        console.error(`Error removing indicator ${instanceId}:`, error);
-        // Continue with other indicators even if this one failed
-      }
-    });
-    
-    // Reset the series references
-    indicatorSeriesRef.current = {};
-    
-    // Add all active indicators
-    activeIndicators.forEach(indicator => {
-      try {
-        addIndicatorToChart(indicator);
-      } catch (error) {
-        console.error(`Error adding indicator ${indicator.name}:`, error);
-      }
-    });
-  }, [activeIndicators]); // Only run when activeIndicators changes, not on symbol changes
-
-  // Function to add an indicator to the chart
-  const addIndicatorToChart = (indicator) => {
-    // Make sure we're using the ref defined at the component level
-    if (!chartInstanceRef.current || !candleSeriesRef.current) {
-      console.error("Chart or candle series not initialized");
-      return;
-    }
-    
-    const chart = chartInstanceRef.current;
-    // Use the stored candle data instead of trying to retrieve it from the series
-    const candles = candleDataRef.current;
-    
-    console.log(`Adding ${indicator.name} to chart with ${candles.length} candles`);
-    
-    if (!candles || candles.length === 0) {
-      showError("No candle data available for indicators");
-      return;
-    }
-    
-    try {
-      switch (indicator.id) {
-        case 'sma':
-        case 'ema':
-        case 'wma': {
-          // Create a moving average series
-          const maType = indicator.id.toUpperCase();
-          const period = indicator.params.period;
-          const source = indicator.params.source || 'close'; // Default to close if not specified
-          
-          console.log(`Calculating ${maType} with period ${period} using ${source} prices`);
-          
-          // Calculate MA values
-          const maData = calculateMovingAverage(candles, period, indicator.id, source);
-          console.log(`Calculated ${maData.length} ${maType} points`);
-          
-          // Use fixed colors based on period instead of random colors
-          // This ensures consistent colors even when changing symbols
-          const getFixedColor = (type, period) => {
-            // Color scheme based on period ranges
-            if (period <= 10) return '#00FF00'; // Red for short periods
-            if (period <= 25) return '#FF0000'; // Red for short periods
-            if (period <= 50) return '#FFA500'; // Orange for longer periods
-            if (period <= 100) return '#9C27B0'; // Purple for very long periods
-            return '#2196F3'; // Blue for extra long periods
-          };
-          
-          // Create the line series with fixed color
-          const lineSeries = chart.addLineSeries({
-            color: getFixedColor(indicator.id, period),
-            lineWidth: 2,
-            priceLineVisible: false,
-            //title: `${maType}(${period})`,
-          });
-          
-          // Set the data
-          lineSeries.setData(maData);
-          console.log(`Added ${maType} indicator to chart`, lineSeries);
-          
-          // Store the series reference
-          indicatorSeriesRef.current[indicator.instanceId] = lineSeries;
-          break;
-        }
-        
-        // Add more indicators as needed
-        
-        default:
-          console.warn(`Indicator ${indicator.id} not implemented yet`);
-          break;
-      }
-    } catch (error) {
-      console.error(`Error adding ${indicator.id} indicator:`, error);
-      showError(`Failed to add indicator: ${error.message}`);
-    }
-  };
-  
-  // Update the calculateMovingAverage function to properly handle EMA calculation
-  const calculateMovingAverage = (candles, period, type = 'sma', source = 'close') => {
+  // EMA calculation function
+  const calculateEMA = (candles, period) => {
     const result = [];
-    console.log(`Calculating ${type.toUpperCase()} with ${period} period on ${source} prices`);
     
     if (candles.length < period) {
-      console.warn(`Not enough candles (${candles.length}) for period ${period}`);
       return result;
     }
     
-    // For EMA, calculate the first value as SMA
-    if (type === 'ema') {
-      // Calculate initial SMA
-      let sum = 0;
-      for (let i = 0; i < period; i++) {
-        sum += candles[i][source];
-      }
-      const initialSMA = sum / period;
+    // Calculate initial SMA for the first EMA value
+    let sum = 0;
+    for (let i = 0; i < period; i++) {
+      sum += candles[i].close;
+    }
+    const initialSMA = sum / period;
+    
+    // Add the first EMA point (which is the SMA)
+    result.push({
+      time: candles[period - 1].time,
+      value: initialSMA
+    });
+    
+    // Calculate remaining EMAs
+    const multiplier = 2 / (period + 1);
+    
+    for (let i = period; i < candles.length; i++) {
+      const currentPrice = candles[i].close;
+      const previousEMA = result[result.length - 1].value;
+      const currentEMA = (currentPrice - previousEMA) * multiplier + previousEMA;
       
-      // Add the first point (SMA)
       result.push({
-        time: candles[period - 1].time,
-        value: initialSMA
+        time: candles[i].time,
+        value: currentEMA
       });
-      
-      // Calculate remaining EMAs
-      const multiplier = 2 / (period + 1);
-      
-      for (let i = period; i < candles.length; i++) {
-        const currentPrice = candles[i][source];
-        const previousEMA = result[result.length - 1].value;
-        const currentEMA = (currentPrice - previousEMA) * multiplier + previousEMA;
-        
-        result.push({
-          time: candles[i].time,
-          value: currentEMA
-        });
-      }
-      
-      console.log(`Generated ${result.length} EMA values`);
-      return result;
     }
     
-    // Original code for SMA and WMA calculations
-    
+    return result;
   };
-  
-  // Similarly update calculateBollingerBands to use the source parameter
-  
-  
-  
-  // Calculate MACD
-  
-  // Helper function to generate random colors for indicators
   
   // Modify the return JSX to include indicator selector and manager
   return (
@@ -1141,7 +776,6 @@ const TradingChart = ({ sidebarOpen }) => {
             <option value="LTCUSDT">LTC/USDT</option>
             <option value="ADAUSDT">ADA/USDT</option>
             <option value="DOTUSDT">DOT/USDT</option>
-
           </select>
           
           <select 
@@ -1157,13 +791,11 @@ const TradingChart = ({ sidebarOpen }) => {
             <option value="1d">1D</option>
           </select>
           
-          <button 
-            className="btn-primary"
-            onClick={handleOpenIndicatorSelector}
-            onFocus={(e) => e.currentTarget.blur()}
-          >
-            Add Indicator
-          </button>
+          <div className="ema-indicators">
+            <span className="ema-label" style={{color: '#00FF00'}}>EMA9</span>
+            <span className="ema-label" style={{color: '#FF9800'}}>EMA21</span>
+            <span className="ema-label" style={{color: '#2196F3'}}>EMA200</span>
+          </div>
         </div>
         
         <div className="chart-info">
@@ -1259,7 +891,6 @@ const TradingChart = ({ sidebarOpen }) => {
         {/* Show hover candle data when hovering */}
         {hoverCandleData && (
           <div className="candle-data-overlay hover">
-            {/* Removed time div to keep consistent with non-hover display */}
             <div className={`candle-data-item ${hoverCandleData.change >= 0 ? 'positive' : 'negative'}`}>
               <span className="candle-data-label">O:</span>
               <span className="candle-data-value">{parseFloat(hoverCandleData.open).toFixed(getDecimalPrecision(hoverCandleData.open))}</span>
@@ -1291,15 +922,6 @@ const TradingChart = ({ sidebarOpen }) => {
           className="chart-area"
           onContextMenu={handleContextMenu}
         ></div>
-        
-        {/* Add Indicator Manager */}
-        {activeIndicators.length > 0 && (
-          <IndicatorManager
-            activeIndicators={activeIndicators}
-            onRemoveIndicator={handleRemoveIndicator}
-            onUpdateIndicator={handleUpdateIndicator}
-          />
-        )}
         
         {/* Context Menu */}
         {contextMenu.visible && (
@@ -1394,13 +1016,6 @@ const TradingChart = ({ sidebarOpen }) => {
           />
         )}
       </div>
-      
-      {/* Add Indicator Selector */}
-      <IndicatorSelector
-        open={indicatorSelectorOpen}
-        onClose={handleCloseIndicatorSelector}
-        onAddIndicator={handleAddIndicator}
-      />
     </div>
   );
 };
