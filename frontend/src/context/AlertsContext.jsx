@@ -1,6 +1,5 @@
-import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
-import { fetchAlerts, checkAlertTrigger, sendDiscordAlert, createAlert, updateAlert } from '../services/api'
-import { useSnackbar } from '../context/SnackbarContext'
+import { createContext, useContext, useState, useEffect, useRef, useCallback } from 'react';
+import { useSnackbar } from './SnackbarContext';
 
 // Create context
 const AlertsContext = createContext()
@@ -17,22 +16,24 @@ export const useAlerts = () => {
 
 // Provider component - keep as named export function
 export function AlertsProvider({ children }) {
-  const [alerts, setAlerts] = useState([])
-  const [loading, setLoading] = useState(true)
-  const [error, setError] = useState(null)
-  const { showSuccess, showWarning, showError } = useSnackbar?.() || {}
+  // Initialize alerts from localStorage or empty array
+  const [alerts, setAlerts] = useState(() => {
+    const savedAlerts = localStorage.getItem('tradingAlerts');
+    return savedAlerts ? JSON.parse(savedAlerts) : [];
+  });
+  
+  // Initialize triggered alerts from localStorage or empty object
+  const [triggeredAlerts, setTriggeredAlerts] = useState(() => {
+    const savedTriggeredAlerts = localStorage.getItem('tradingTriggeredAlerts');
+    return savedTriggeredAlerts ? JSON.parse(savedTriggeredAlerts) : {};
+  });
+  
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState(null);
+  const { showSuccess, showWarning, showError } = useSnackbar?.() || {};
   
   // Store the last checked prices for each alert
   const lastCheckedPricesRef = useRef({});
-  
-  // Track temporarily triggered alerts with cooldown
-  const [triggeredAlerts, setTriggeredAlerts] = useState({});
-  
-  // Add a ref to track when alerts were triggered
-  const triggeredTimeRef = useRef({});
-  
-  // Track price subscriptions for all symbols with active alerts
-  const priceSubscriptionsRef = useRef({});
   
   // Track the latest prices for all monitored symbols
   const latestPricesRef = useRef({});
@@ -40,240 +41,123 @@ export function AlertsProvider({ children }) {
   // Add a flag to prevent checking alerts during initial load
   const initialLoadRef = useRef(true);
   
-  // Load alerts on mount
+  // Save alerts to localStorage whenever they change
   useEffect(() => {
-    const loadAlerts = async () => {
+    localStorage.setItem('tradingAlerts', JSON.stringify(alerts));
+  }, [alerts]);
+
+  // Save triggered alerts to localStorage whenever they change
+  useEffect(() => {
+    localStorage.setItem('tradingTriggeredAlerts', JSON.stringify(triggeredAlerts));
+  }, [triggeredAlerts]);
+  
+  // Load alerts on mount - use local storage as the source of truth
+  useEffect(() => {
+    const loadAlerts = () => {
       try {
-        setLoading(true)
-        const data = await fetchAlerts()
-        setAlerts(data)
-        setError(null)
-      } catch (err) {
-        console.error('Error loading alerts:', err)
-        setError('Failed to load alerts')
+        setLoading(true);
+        // No API call, just use state already loaded from localStorage
+        initialLoadRef.current = false;
+      } catch (error) {
+        console.error('Error loading alerts:', error);
+        setError(error.message);
       } finally {
-        setLoading(false)
-        
-        // Mark initial load as complete after a short delay
-        // This ensures we don't trigger alerts on first load
-        setTimeout(() => {
-          initialLoadRef.current = false;
-        }, 5000); // Wait 5 seconds before enabling alert checking
+        setLoading(false);
       }
-    }
+    };
     
-    loadAlerts()
+    loadAlerts();
     
     // Reset initial load flag when component unmounts
     return () => {
       initialLoadRef.current = true;
-    }
-  }, [])
-  
-  // Set up price tracking for all symbols with active alerts
-  useEffect(() => {
-    // Skip if we're still loading alerts
-    if (loading || alerts.length === 0) return;
-    
-    // Get unique symbols from active alerts
-    const symbolsToMonitor = [...new Set(
-      alerts
-        .filter(alert => alert.status === 'active')
-        .map(alert => alert.symbol)
-    )];
-    
-    console.log('Setting up price tracking for symbols:', symbolsToMonitor);
-    
-    // Import the subscribeToPriceUpdates function
-    import('../services/api').then(({ subscribeToPriceUpdates }) => {
-      // Clean up any existing subscriptions
-      Object.values(priceSubscriptionsRef.current).forEach(unsub => {
-        if (typeof unsub === 'function') unsub();
-      });
-      
-      // Create a new subscriptions object
-      const newSubscriptions = {};
-      
-      // Subscribe to price updates for each symbol
-      symbolsToMonitor.forEach(symbol => {
-        newSubscriptions[symbol] = subscribeToPriceUpdates(symbol, (price) => {
-          // Store the latest price for this symbol
-          latestPricesRef.current[symbol] = price;
-          
-          // Check alerts for this symbol when price updates
-          if (!initialLoadRef.current) {
-            checkAlertsForSymbol(symbol, price);
-          }
-        });
-      });
-      
-      // Update the subscriptions ref
-      priceSubscriptionsRef.current = newSubscriptions;
-    });
-    
-    // Clean up subscriptions on unmount
-    return () => {
-      Object.values(priceSubscriptionsRef.current).forEach(unsub => {
-        if (typeof unsub === 'function') unsub();
-      });
-      priceSubscriptionsRef.current = {};
     };
-  }, [alerts, loading]);
+  }, []);
   
   // Handle alert triggering with better error handling and cooldown management
   const handleAlertTriggered = useCallback(async (alert, price) => {
-    console.log(`⚠️⚠️⚠️ ALERT TRIGGERED! ${alert.symbol} ${alert.condition} ${alert.value} (current: ${price})`);
-    
     try {
-      // Store the trigger time
-      triggeredTimeRef.current[alert.id] = Date.now();
-      
-      // Send Discord notification with better error handling
-      const result = await sendDiscordAlert(alert, price);
-      
-      if (result.success) {
-        showSuccess?.(`Alert triggered: ${alert.symbol} ${alert.condition} ${alert.value}`);
-        console.log(`⚠️ Discord alert success:`, result);
-      } else {
-        showWarning?.(`Alert triggered but Discord notification failed: ${result.message}`);
-        console.error(`⚠️ Discord alert failed:`, result);
-      }
-      
-      // Mark as triggered in local state (for UI display)
+      // Mark the alert as triggered in state
       setTriggeredAlerts(prev => ({
         ...prev,
         [alert.id]: true
       }));
       
-      // Important: DON'T change the alert status to 'triggered' permanently
-      // Instead, we'll mark it as triggered temporarily for the cooldown period
+      // Show notification
+      if (alert.condition === 'above') {
+        showSuccess(`${alert.symbol} has risen above ${alert.value}`);
+      } else if (alert.condition === 'below') {
+        showWarning(`${alert.symbol} has fallen below ${alert.value}`);
+      } else {
+        showSuccess(`${alert.symbol} alert triggered: ${alert.condition} ${alert.value}`);
+      }
       
-      // Reset the triggered state after cooldown period
-      setTimeout(() => {
-        console.log(`⚠️ Cooldown complete for alert ${alert.id}. Alert is now active again.`);
-        
-        // Remove from triggered alerts (but keep alert status as 'active')
-        setTriggeredAlerts(prev => {
-          const updated = {...prev};
-          delete updated[alert.id];
-          return updated;
-        });
-        
-      }, 60000); // 1-minute cooldown before allowing to trigger again
+      // No need for API call for triggered alerts - this is all local now
       
-      return true;
     } catch (error) {
-      console.error('⚠️ Error handling triggered alert:', error);
-      showError?.(`Error sending alert notification: ${error.message}`);
-      return false;
+      console.error('Error handling triggered alert:', error);
+      showError(`Failed to process alert: ${error.message}`);
     }
   }, [showSuccess, showWarning, showError]);
   
   // Function to check alerts for a specific symbol
   const checkAlertsForSymbol = useCallback((symbol, price) => {
-    if (initialLoadRef.current) return [];
+    // Store the latest price
+    latestPricesRef.current[symbol] = price;
     
-    // Get active alerts for this symbol - IMPORTANT: check for status='active' 
-    const symbolAlerts = alerts.filter(alert => 
-      alert.symbol === symbol && 
-      alert.status === 'active'  // Only consider alerts that are active
+    // Find alerts for this symbol
+    const symbolAlerts = alerts.filter(
+      alert => alert.symbol === symbol && (!triggeredAlerts[alert.id])
     );
     
-    if (symbolAlerts.length === 0) return [];
-    
-    // Skip extremely frequent logs to avoid console spam
-    if (Math.random() < 0.1) { // Only log ~10% of checks
-      console.log(`Checking ${symbolAlerts.length} alerts for ${symbol} at price ${price}`);
-    }
-    
-    const newTriggeredAlerts = [];
-    
     symbolAlerts.forEach(alert => {
-      const alertId = alert.id;
-      const lastPrice = lastCheckedPricesRef.current[alertId];
-      const lastTriggeredTime = triggeredTimeRef.current[alertId] || 0;
-      const currentTime = Date.now();
-      const timeSinceLastTrigger = currentTime - lastTriggeredTime;
-      const isInCooldown = timeSinceLastTrigger < 60000; // 1 minute cooldown
-      const alertValue = parseFloat(alert.value);
+      const targetValue = parseFloat(alert.value);
+      const lastPrice = lastCheckedPricesRef.current[symbol] || price;
       
-      // If this is the first time we're checking this alert, store the price but don't trigger
-      if (lastPrice === undefined) {
-        console.log(`First check for alert ${alertId}, storing price ${price} without triggering`);
-        lastCheckedPricesRef.current[alertId] = price;
-        return; // Skip this alert for now
-      }
+      // Skip if no valid target value
+      if (isNaN(targetValue)) return;
       
-      // Skip if the alert is currently in cooldown period (less than 1 minute since last trigger)
-      if (isInCooldown) {
-        // Only log occasionally to avoid spam
-        if (Math.random() < 0.01) {
-          console.log(`Alert ${alertId} is in cooldown (${Math.round(timeSinceLastTrigger/1000)}s elapsed, needs 60s)`);
-        }
-        return; // Skip this alert during cooldown
-      }
-      
-      // Determine if we should trigger based on price crossing the threshold
-      let shouldTrigger = false;
-      
-      if (alert.condition === 'above' && lastPrice < alertValue && price >= alertValue) {
-        console.log(`Alert triggered: ${alert.symbol} crossed above ${alertValue}`);
-        shouldTrigger = true;
+      // Check conditions
+      if (alert.condition === 'above' && price >= targetValue && lastPrice < targetValue) {
+        handleAlertTriggered(alert, price);
       } 
-      else if (alert.condition === 'below' && lastPrice > alertValue && price <= alertValue) {
-        console.log(`Alert triggered: ${alert.symbol} crossed below ${alertValue}`);
-        shouldTrigger = true;
+      else if (alert.condition === 'below' && price <= targetValue && lastPrice > targetValue) {
+        handleAlertTriggered(alert, price);
       }
       else if (alert.condition === 'crosses') {
-        const crossedUp = lastPrice < alertValue && price >= alertValue;
-        const crossedDown = lastPrice > alertValue && price <= alertValue;
-        if (crossedUp || crossedDown) {
-          console.log(`Alert triggered: ${alert.symbol} crossed ${alertValue}`);
-          shouldTrigger = true;
+        if ((lastPrice < targetValue && price >= targetValue) || 
+            (lastPrice > targetValue && price <= targetValue)) {
+          handleAlertTriggered(alert, price);
         }
-      }
-      
-      // Update the last checked price
-      lastCheckedPricesRef.current[alertId] = price;
-      
-      // If we should trigger the alert
-      if (shouldTrigger) {
-        console.log(`ALERT TRIGGERED! ${alert.symbol} ${alert.condition} ${alert.value} at ${new Date().toLocaleTimeString()}`);
-        newTriggeredAlerts.push(alert);
-        
-        // Record the trigger time immediately (even before the async operation)
-        triggeredTimeRef.current[alertId] = currentTime;
-        
-        // Handle alert triggering (this will start the cooldown)
-        handleAlertTriggered(alert, price);
       }
     });
     
-    return newTriggeredAlerts;
-  }, [alerts, handleAlertTriggered]);
+    // Update the last checked price
+    lastCheckedPricesRef.current[symbol] = price;
+  }, [alerts, triggeredAlerts, handleAlertTriggered]);
   
   // Replace the existing checkAlertsAgainstPrice function with this improved version
   const checkAlertsAgainstPrice = useCallback((symbol, price) => {
-    // This function is called from the chart component, but we'll now handle price
-    // subscriptions independently, so just update the latest price
-    latestPricesRef.current[symbol] = price;
+    // Skip if we're still in initial load
+    if (initialLoadRef.current) return;
     
-    // For backward compatibility, also check alerts for this symbol
-    return checkAlertsForSymbol(symbol, price);
+    checkAlertsForSymbol(symbol, price);
   }, [checkAlertsForSymbol]);
   
   // Function to create an alert without refreshing the chart
   const createAlertWithoutRefresh = useCallback(async (alertData) => {
     try {
-      const createdAlert = await createAlert({
+      // Create local alert with generated ID
+      const localAlert = {
         ...alertData,
-        skipTestNotification: true
-      });
+        id: Date.now().toString(),
+        created_at: new Date().toISOString(),
+        status: 'active'
+      };
       
-      // Update local state in a way that doesn't trigger chart refresh
-      setAlerts(prev => [...prev, createdAlert]);
-      
-      return createdAlert;
+      // Update alerts state
+      setAlerts(prev => [...prev, localAlert]);
+      return localAlert;
     } catch (error) {
       console.error('Error creating alert:', error);
       throw error;
@@ -283,14 +167,16 @@ export function AlertsProvider({ children }) {
   // Add function to update an alert without refreshing the chart
   const updateAlertWithoutRefresh = useCallback(async (alertId, alertData) => {
     try {
-      const updatedAlert = await updateAlert(alertId, {
+      // Update the local alert
+      const updatedAlert = {
         ...alertData,
-        skipTestNotification: true
-      });
+        id: alertId,
+        status: 'active'
+      };
       
-      // Update local state in a way that doesn't trigger chart refresh
+      // Update in state
       setAlerts(prev => prev.map(alert => 
-        alert.id === alertId ? updatedAlert : alert
+        alert.id === alertId ? { ...alert, ...updatedAlert } : alert
       ));
       
       return updatedAlert;
@@ -300,20 +186,26 @@ export function AlertsProvider({ children }) {
     }
   }, []);
   
+  // Function to delete an alert locally
+  const deleteAlertLocal = useCallback((alertId) => {
+    setAlerts(prev => prev.filter(alert => alert.id !== alertId));
+    
+    // Also remove from triggered alerts if it exists
+    if (triggeredAlerts[alertId]) {
+      const newTriggeredAlerts = { ...triggeredAlerts };
+      delete newTriggeredAlerts[alertId];
+      setTriggeredAlerts(newTriggeredAlerts);
+    }
+  }, [triggeredAlerts]);
+  
   // Function to manually reset a triggered alert (for UI button)
   const resetTriggeredAlert = useCallback((alertId) => {
-    // Remove from triggered alerts to make it active again immediately
-    setTriggeredAlerts(prev => {
-      const newState = { ...prev };
-      delete newState[alertId];
-      return newState;
-    });
-    
-    // Clear the trigger time
-    delete triggeredTimeRef.current[alertId];
-    
-    console.log(`Alert ${alertId} manually reset. It will trigger again on next condition match.`);
-  }, []);
+    if (triggeredAlerts[alertId]) {
+      const newTriggeredAlerts = { ...triggeredAlerts };
+      delete newTriggeredAlerts[alertId];
+      setTriggeredAlerts(newTriggeredAlerts);
+    }
+  }, [triggeredAlerts]);
   
   // Context value - make sure to include all required functions and state
   const value = {
@@ -325,7 +217,8 @@ export function AlertsProvider({ children }) {
     resetTriggeredAlert,
     triggeredAlerts,
     createAlertWithoutRefresh,
-    updateAlertWithoutRefresh
+    updateAlertWithoutRefresh,
+    deleteAlertLocal
   }
   
   return (
