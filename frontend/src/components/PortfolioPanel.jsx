@@ -180,8 +180,8 @@ const PortfolioPanel = () => {
                 </tr>
               </thead>
               <tbody>
-                {tradeHistory.slice().reverse().map((trade) => (
-                  <tr key={trade.id}>
+                {tradeHistory.slice().reverse().map((trade, index) => (
+                  <tr key={`${trade.id}-${index}`}>
                     <td>{formatDateTime(trade.time)}</td>
                     <td>{trade.symbol}</td>
                     <td className={trade.direction === 'buy' ? 'buy' : 'sell'}>
