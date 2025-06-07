@@ -1,21 +1,4 @@
-// Use environment variable with fallback logic for API URL
-const API_BASE_URL = import.meta.env.VITE_API_URL || 
-                    'https://trading-app-backend-t9k9.onrender.com/api';
-
-console.log('Using API URL:', API_BASE_URL);
-
-// Add helper function to toggle between local and deployed backend
-export function toggleBackendSource(useLocal) {
-  if (useLocal) {
-    localStorage.setItem('useLocalBackend', 'true');
-    console.log('Switched to local backend: http://localhost:8000/api');
-  } else {
-    localStorage.setItem('useLocalBackend', 'false');
-    console.log('Switched to deployed backend: https://trading-app-backend-t9k9.onrender.com/api');
-  }
-  // Reload the page to apply the change
-  window.location.reload();
-}
+const API_BASE_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
 
 // Generate mock candle data since we don't have a backend yet
 function generateMockCandles(symbol, timeframe) {
@@ -166,79 +149,86 @@ export async function fetchAlerts() {
 }
 
 // Add diagnostic functions to check alert triggering
-export async function triggerAlertTest(symbol, condition, value) {
-  console.log('🔍 DIAGNOSTIC: Manual alert trigger test started');
-  
+export const triggerAlertTest = async (symbol, condition, value) => {
   try {
-    // Get current price for the symbol
-    const response = await fetch(`https://api.binance.com/api/v3/ticker/price?symbol=${symbol.toUpperCase()}`);
+    console.log("🔍 DIAGNOSTIC: Manual alert trigger test started");
     
-    if (!response.ok) {
-      throw new Error(`HTTP error ${response.status}`);
+    // Step 1: Get current price
+    const priceResponse = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/prices/${symbol}`);
+    if (!priceResponse.ok) {
+      throw new Error(`Failed to get current price: ${priceResponse.statusText}`);
     }
+    const priceData = await priceResponse.json();
+    const currentPrice = priceData.price;
+    console.log(`🔍 DIAGNOSTIC: Got current price for ${symbol}: ${currentPrice}`);
     
-    const data = await response.json();
-    const price = parseFloat(data.price);
-    
-    console.log(`🔍 DIAGNOSTIC: Got current price for ${symbol}: ${price}`);
-    
-    // Test if the condition is met with current price
+    // Step 2: Check if condition would be met
     let conditionMet = false;
-    const triggerValue = parseFloat(value);
-    
-    if (condition === 'above' && price >= triggerValue) {
-      conditionMet = true;
-    } else if (condition === 'below' && price <= triggerValue) {
-      conditionMet = true;
+    const numValue = parseFloat(value);
+    if (condition === 'above') {
+      conditionMet = currentPrice > numValue;
+    } else if (condition === 'below') {
+      conditionMet = currentPrice < numValue;
     } else if (condition === 'crosses') {
-      // For diagnostic, we'll just check if price is near value
-      const diff = Math.abs(price - triggerValue);
-      const threshold = Math.max(0.001 * triggerValue, 0.1);
-      conditionMet = diff < threshold;
+      // Can't determine for crosses without history
+      conditionMet = Math.abs(currentPrice - numValue) / numValue < 0.01; // Within 1%
     }
     
     console.log(`🔍 DIAGNOSTIC: Condition check - ${condition} ${value}: ${conditionMet ? 'MET' : 'NOT MET'}`);
     
-    // Force trigger a direct Discord alert for testing
-    const alertData = {
-      id: 'test-' + Date.now(),
-      symbol,
-      condition,
-      value,
-      notifyDiscord: true
-    };
-    
-    // Try direct webhook first
-    const webhookTest = await testDiscordWebhook();
-    console.log('🔍 DIAGNOSTIC: Discord webhook test result:', webhookTest);
-    
-    // Try manual alert trigger using the test-alert endpoint instead of force-trigger-alert
-    const result = await fetch(`${API_BASE_URL}/test-alert`, {
+    // Step 3: Test Discord webhook directly
+    console.log("⚠️ TESTING DISCORD WEBHOOK DIRECTLY ⚠️");
+    const webhookTestResponse = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/discord/test-webhook`, {
       method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
+      headers: {
+        'Content-Type': 'application/json',
+      },
       body: JSON.stringify({
-        symbol: symbol,
-        price: price,
-        condition: condition,
-        targetPrice: parseFloat(value),
-        isRealAlert: true,
-        forceSend: true,
-        message: `🔍 DIAGNOSTIC TEST: ${symbol} ${condition} ${value} (current price: ${price})`
-      })
+        message: `Test message from trading app diagnostic: ${symbol} ${condition} ${value}`
+      }),
     });
     
-    const resultData = await result.json().catch(() => ({}));
-    console.log('🔍 DIAGNOSTIC: Manual trigger result:', resultData);
+    const webhookTestResult = await webhookTestResponse.json();
+    console.log(`⚠️ Discord test response status: ${webhookTestResponse.status}`);
+    console.log(`⚠️ Discord test response:`, webhookTestResult);
+    
+    const webhookTest = {
+      success: webhookTestResponse.ok,
+      status: webhookTestResponse.status,
+      data: webhookTestResult
+    };
+    
+    console.log("🔍 DIAGNOSTIC: Discord webhook test result:", webhookTest);
+    
+    // Step 4: Try to force trigger the alert
+    const alertResponse = await fetch(`${import.meta.env.VITE_API_URL || '/api'}/alerts/force-trigger-alert`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        symbol,
+        condition,
+        value,
+        price: currentPrice
+      }),
+    });
+    
+    const alertResult = alertResponse.ok ? 
+      await alertResponse.json() : 
+      { detail: alertResponse.statusText };
+    
+    console.log("🔍 DIAGNOSTIC: Manual trigger result:", alertResult);
     
     return {
-      success: true,
-      price,
+      success: webhookTest.success,
+      price: currentPrice,
       conditionMet,
       webhookTest,
-      alertResult: resultData
+      alertResult
     };
   } catch (error) {
-    console.error('🔍 DIAGNOSTIC ERROR:', error);
+    console.error("🔍 DIAGNOSTIC ERROR:", error);
     return {
       success: false,
       error: error.message
@@ -708,26 +698,24 @@ export const fetchCurrentPrice = async (symbol) => {
 
 export const fetchMarketData = async (symbols) => {
   try {
-    // Fetch data for all requested symbols in parallel
     const marketData = await Promise.all(
       symbols.map(async (symbol) => {
         try {
-          // Fetch current price
-          const price = await fetchCurrentPrice(symbol);
+          // Use import.meta.env instead of process.env
+          const API_URL = import.meta.env.VITE_API_URL || 'http://localhost:8000/api';
+          const response = await fetch(`${API_URL}/prices/${symbol}`);
           
-          // For 24h change, we'd normally fetch historical data
-          // As a temporary solution, we'll use a small random value
-          // In production, you should fetch real 24h data from the backend
-          const changePercent = (Math.random() * 10 - 5).toFixed(2); // Between -5% and +5%
-          const previousClose = price / (1 + changePercent / 100);
-          const change = price - previousClose;
+          if (!response.ok) {
+            throw new Error(`HTTP error! status: ${response.status}`);
+          }
           
+          const data = await response.json();
           return {
             symbol,
-            price,
-            change,
-            changePercent: parseFloat(changePercent),
-            previousClose
+            price: data.price || 0,
+            change: data.change || 0,
+            changePercent: data.changePercent || 0,
+            previousClose: data.previousClose || 0
           };
         } catch (error) {
           console.error(`Error fetching data for ${symbol}`, error);
