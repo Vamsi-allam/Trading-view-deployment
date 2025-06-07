@@ -80,7 +80,7 @@ const calculateLiquidationPrice = (entryPrice, leverage, direction, maintenanceM
   }
 };
 
-// Styled components for Material-UI - update to filter custom props
+// Styled components for Material-UI
 const StyledDialog = styled(Dialog, {
   shouldForwardProp: (prop) => prop !== 'isDarkMode'
 })(({ theme, isDarkMode }) => ({
@@ -299,6 +299,12 @@ const OrderForm = ({ symbol, currentPrice, direction = 'buy', onClose }) => {
     return numPrice.toFixed(precision);
   };
   
+  // Add safe number formatting helper
+  const safeNumberFormat = (value, precision = 5) => {
+    const num = parseFloat(value);
+    return isNaN(num) ? "0" : num.toFixed(precision);
+  };
+  
   return (
     <div className="order-form-wrapper">
       <div className={`order-form-panel ${isDarkMode ? 'dark' : 'light'} ${isCollapsed ? 'collapsed' : ''}`}>
@@ -369,13 +375,13 @@ const OrderForm = ({ symbol, currentPrice, direction = 'buy', onClose }) => {
                 <label htmlFor="quantity">
                   Quantity ({symbol.replace('USDT', '')})
                   <span className="lot-size-info">
-                    (1 Lot = {parseFloat(LOT_SIZES[symbol]).toFixed(5)} {symbol.replace('USDT', '')})
+                    (1 Lot = {parseFloat(LOT_SIZES[symbol] || 1).toFixed(5)} {symbol.replace('USDT', '')})
                   </span>
                 </label>
                 <input
-                  type="number"
+                  type="text" // Changed from number to text to avoid NaN validation errors
                   id="quantity"
-                  value={quantity && !isNaN(parseFloat(quantity)) ? parseFloat(quantity).toFixed(5) : "0.00000"}
+                  value={safeNumberFormat(quantity)}
                   readOnly
                   disabled
                 />
@@ -442,15 +448,15 @@ const OrderForm = ({ symbol, currentPrice, direction = 'buy', onClose }) => {
               <div className="order-summary">
                 <div className="summary-row">
                   <span>Order Value:</span>
-                  <span>${((parseFloat(quantity) || 0) * (orderType === 'market' ? currentPrice : parseFloat(limitPrice) || 0)).toFixed(2)}</span>
+                  <span>${safeNumberFormat((parseFloat(quantity) || 0) * (orderType === 'market' ? currentPrice : parseFloat(limitPrice) || 0), 2)}</span>
                 </div>
                 <div className="summary-row">
                   <span>Required Margin:</span>
-                  <span className={canExecute ? '' : 'error'}>${calculatedMargin.toFixed(2)}</span>
+                  <span className={canExecute ? '' : 'error'}>${safeNumberFormat(calculatedMargin, 2)}</span>
                 </div>
                 <div className="summary-row">
                   <span>Available Balance:</span>
-                  <span>${balance.toFixed(2)}</span>
+                  <span>${safeNumberFormat(balance, 2)}</span>
                 </div>
               </div>
               
@@ -513,7 +519,7 @@ const OrderForm = ({ symbol, currentPrice, direction = 'buy', onClose }) => {
           </PreviewRow>
           <PreviewRow isDarkMode={isDarkMode}>
             <span className="label">Position Size</span>
-            <span className="value">{quantity} {symbol.replace('USDT', '')}</span>
+            <span className="value">{safeNumberFormat(quantity)} {symbol.replace('USDT', '')}</span>
           </PreviewRow>
           <PreviewRow isDarkMode={isDarkMode}>
             <span className="label">Entry Price</span>
@@ -530,10 +536,7 @@ const OrderForm = ({ symbol, currentPrice, direction = 'buy', onClose }) => {
           <PreviewRow isDarkMode={isDarkMode}>
             <span className="label">Required Margin</span>
             <span className="value" style={{ fontFamily: 'monospace' }}>
-              ${calculatedMargin.toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })}
+              ${safeNumberFormat(calculatedMargin, 2)}
             </span>
           </PreviewRow>
           <PreviewRow isDarkMode={isDarkMode}>
@@ -543,14 +546,11 @@ const OrderForm = ({ symbol, currentPrice, direction = 'buy', onClose }) => {
               fontFamily: 'monospace',
               fontWeight: 600 
             }}>
-              ${calculateLiquidationPrice(
-                orderType === 'market' ? currentPrice : parseFloat(limitPrice),
-                parseInt(leverage),
+              ${safeNumberFormat(calculateLiquidationPrice(
+                orderType === 'market' ? currentPrice : parseFloat(limitPrice || 0),
+                parseInt(leverage || 1),
                 direction
-              ).toLocaleString(undefined, {
-                minimumFractionDigits: 2,
-                maximumFractionDigits: 2
-              })}
+              ), 2)}
             </span>
           </PreviewRow>
         </StyledDialogContent>
