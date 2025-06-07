@@ -3,6 +3,7 @@ from services.exchange_service import ExchangeService
 import asyncio
 import logging
 import random
+from datetime import datetime
 
 router = APIRouter()
 logger = logging.getLogger("prices_router")
@@ -10,18 +11,34 @@ logger = logging.getLogger("prices_router")
 # Add a price cache at the module level to provide fallbacks
 price_cache = {}
 
+# Track the last log time to reduce logging frequency
+_last_log_time = {}
+_LOG_INTERVAL = 10  # seconds between logging similar events
+
+def should_log(symbol):
+    """Determine if we should log this event based on time since last log"""
+    now = datetime.now().timestamp()
+    if symbol not in _last_log_time or (now - _last_log_time[symbol]) > _LOG_INTERVAL:
+        _last_log_time[symbol] = now
+        return True
+    return False
+
 @router.get("/{symbol}")
 async def get_price(symbol: str):
     """Get current price for a symbol"""
     try:
-        logger.info(f"Fetching price for {symbol}")
+        if should_log(symbol):
+            logger.info(f"Fetching price for {symbol}")
+        
         exchange_service = ExchangeService()
         price = await exchange_service.get_current_price(symbol)
         
         # Cache the successful price
         price_cache[symbol] = price
         
-        logger.info(f"Price for {symbol}: {price}")
+        if should_log(symbol):
+            logger.info(f"Price for {symbol}: {price}")
+        
         return {"symbol": symbol, "price": price}
     except Exception as e:
         logger.error(f"Error fetching price for {symbol}: {str(e)}")
