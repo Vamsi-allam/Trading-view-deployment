@@ -3,7 +3,9 @@ import os
 from typing import Dict, Any, Optional
 import logging
 import datetime
-import time  # Add this import
+import time
+import json
+import traceback
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
@@ -23,7 +25,9 @@ class DiscordService:
         self.recent_alerts = {}
         self.dedup_window = 5  # seconds to prevent duplicate alerts
         
-        logger.info(f"Discord webhook URL: {self.webhook_url[:20]}...")
+        # Log webhook URL for debugging
+        masked_url = self.webhook_url[:20] + "..." if self.webhook_url else "None"
+        logger.info(f"Discord webhook URL: {masked_url}")
         
     async def send_message(self, content: str, embeds: Optional[list] = None) -> Dict[str, Any]:
         """
@@ -65,10 +69,13 @@ class DiscordService:
             payload["embeds"] = embeds
             
         try:
-            logger.info(f"⚠️ Webhook URL being used: {self.webhook_url[:20]}...")
-            logger.info(f"⚠️ Payload being sent: {str(payload)[:200]}...")
+            # Log more detailed information for debugging
+            masked_url = self.webhook_url[:20] + "..." if self.webhook_url else "None"
+            logger.info(f"⚠️ Webhook URL being used: {masked_url}")
+            logger.info(f"⚠️ Payload being sent: {json.dumps(payload)[:200]}...")
             
-            async with aiohttp.ClientSession() as session:
+            timeout = aiohttp.ClientTimeout(total=30)  # 30 second timeout
+            async with aiohttp.ClientSession(timeout=timeout) as session:
                 async with session.post(
                     self.webhook_url, 
                     json=payload,
@@ -80,6 +87,8 @@ class DiscordService:
                     
                     if response.status not in [200, 204]:
                         logger.error(f"⚠️ Discord webhook failed: {response_text}")
+                        # Print more detailed error information
+                        logger.error(f"⚠️ Request details: URL={masked_url}, Headers={session.headers}")
                         raise Exception(f"Discord webhook failed with status {response.status}: {response_text}")
                         
                     if response.status == 204:  # Discord returns 204 No Content on success
@@ -90,7 +99,12 @@ class DiscordService:
                     return await response.json()
         except aiohttp.ClientError as e:
             logger.error(f"⚠️ Network error when sending to Discord: {str(e)}")
+            logger.error(f"⚠️ Stack trace: {traceback.format_exc()}")
             raise Exception(f"Network error when sending to Discord: {str(e)}")
+        except Exception as e:
+            logger.error(f"⚠️ Unexpected error sending to Discord: {str(e)}")
+            logger.error(f"⚠️ Stack trace: {traceback.format_exc()}")
+            raise
                 
     async def send_alert(self, symbol: str, alert_type: str, condition: str, value: str, current_price: float) -> Dict[str, Any]:
         """
@@ -117,8 +131,10 @@ class DiscordService:
             # Format ISO timestamp for Discord
             timestamp = datetime.datetime.utcnow().isoformat()
             
+            # Create a more detailed embed with better formatting
             embed = {
-                "title": f"🚨@everyone Trading Alert: {symbol}",
+                "title": f"🚨 Trading Alert: {symbol}",
+                "description": f"An alert has been triggered for {symbol}!",
                 "color": 16711680,  # Red color
                 "fields": [
                     {
@@ -133,24 +149,41 @@ class DiscordService:
                     },
                     {
                         "name": "Trigger Value",
-                        "value": str(value),
+                        "value": f"${value}",
                         "inline": True
                     },
                     {
                         "name": "Current Price",
-                        "value": str(current_price_float),
+                        "value": f"${current_price_float:.2f}",
                         "inline": True
+                    },
+                    {
+                        "name": "Triggered At",
+                        "value": f"<t:{int(time.time())}:F>",
+                        "inline": False
                     }
                 ],
-                "timestamp": timestamp
+                "timestamp": timestamp,
+                "footer": {
+                    "text": "Trading Bot Alert System"
+                }
             }
             
-            logger.info(f"Sending alert to Discord for {symbol}, embed: {embed}")
+            logger.info(f"Sending alert to Discord for {symbol}, embed: {json.dumps(embed)[:200]}...")
             
+            # Send the alert with @everyone mention to ensure notifications
             return await self.send_message(
-                content=f"Trading alert triggered for {symbol}!",
+                content=f"@everyone Trading alert triggered for {symbol}!",
                 embeds=[embed]
             )
         except Exception as e:
             logger.error(f"Error formatting alert: {str(e)}")
-            raise
+            logger.error(f"Stack trace: {traceback.format_exc()}")
+            # Try to send a simple message as fallback
+            try:
+                return await self.send_message(
+                    content=f"@everyone Trading alert for {symbol}: {condition} {value} (current: {current_price})"
+                )
+            except:
+                logger.error("Failed to send fallback alert message")
+                raise
