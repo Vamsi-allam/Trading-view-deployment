@@ -153,4 +153,4 @@ const SimpleChart = () => {
   )
 }
 
-export default SimpleChart
+export default SimpleChart;
