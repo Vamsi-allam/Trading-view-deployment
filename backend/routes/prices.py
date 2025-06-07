@@ -4,6 +4,7 @@ import asyncio
 import logging
 import random
 from datetime import datetime
+import time
 
 router = APIRouter()
 logger = logging.getLogger("prices_router")
@@ -13,12 +14,20 @@ price_cache = {}
 
 # Track the last log time to reduce logging frequency
 _last_log_time = {}
-_LOG_INTERVAL = 10  # seconds between logging similar events
+_LOG_INTERVAL = 30  # seconds between logging similar events
+_request_count = {}  # Track request count per symbol
 
 def should_log(symbol):
-    """Determine if we should log this event based on time since last log"""
-    now = datetime.now().timestamp()
-    if symbol not in _last_log_time or (now - _last_log_time[symbol]) > _LOG_INTERVAL:
+    """Determine if we should log this event based on time since last log and count"""
+    now = time.time()
+    
+    # Update request counter
+    _request_count[symbol] = _request_count.get(symbol, 0) + 1
+    
+    # Log based on combination of time and count
+    if (symbol not in _last_log_time or 
+            (now - _last_log_time[symbol]) > _LOG_INTERVAL or
+            _request_count[symbol] % 20 == 0):  # Log every 20th request even if within time window
         _last_log_time[symbol] = now
         return True
     return False
