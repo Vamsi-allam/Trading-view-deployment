@@ -9,16 +9,84 @@ import logging
 import random
 import math
 from datetime import datetime
+from functools import wraps
 
 # Set up logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("exchange_service")
 
+# Module-level log tracking to prevent excessive logging
+_LOG_TIMESTAMPS = {}
+_MIN_LOG_INTERVAL = 30  # minimum seconds between similar log messages
+
+# Decorator to prevent excessive logging of similar messages
+def suppress_duplicate_logs(interval=30):
+    def decorator(func):
+        @wraps(func)
+        async def wrapper(*args, **kwargs):
+            # Generate a key based on the function name and arguments
+            key = f"{func.__name__}"
+            if len(args) > 1 and isinstance(args[1], str):  # Assuming args[1] is symbol
+                key += f":{args[1]}"
+            
+            current_time = time.time()
+            last_log_time = _LOG_TIMESTAMPS.get(key, 0)
+            
+            # Suppress logging if this message was logged recently
+            should_log = (current_time - last_log_time) >= interval
+            
+            # Store original logger methods and temporarily modify them if needed
+            if not should_log:
+                orig_warning = logger.warning
+                orig_info = logger.info
+                
+                # Create no-op functions for temporarily disabling specific log levels
+                def silent_warning(msg, *args, **kwargs):
+                    pass
+                
+                def silent_info(msg, *args, **kwargs):
+                    pass
+                
+                # Replace the log methods with silent versions
+                logger.warning = silent_warning
+                logger.info = silent_info
+                
+                try:
+                    result = await func(*args, **kwargs)
+                finally:
+                    # Restore original logger methods
+                    logger.warning = orig_warning
+                    logger.info = orig_info
+                
+                return result
+            else:
+                # Update the timestamp for this message type
+                _LOG_TIMESTAMPS[key] = current_time
+                return await func(*args, **kwargs)
+        
+        return wrapper
+    return decorator
+
 class ExchangeService:
-    # Class variable to track if geo-restriction has been logged
+    # Class variables to track service-wide state
     _geo_restriction_logged = False
+    _instance = None  # For singleton pattern
+    _initialized = False
+    _last_warning_times = {}  # Track last warning time for each symbol
+    _simulation_log_frequency = 20  # Only log simulation messages every N requests
+    
+    def __new__(cls, *args, **kwargs):
+        # Implement singleton pattern to ensure all code uses the same instance
+        if cls._instance is None:
+            cls._instance = super(ExchangeService, cls).__new__(cls)
+            cls._instance._initialized = False
+        return cls._instance
     
     def __init__(self):
+        # Only initialize once, even if multiple instances are created
+        if self._initialized:
+            return
+            
         # API keys
         self.api_key = os.getenv("BINANCE_API_KEY", "")
         self.api_secret = os.getenv("BINANCE_API_SECRET", "")
@@ -30,7 +98,7 @@ class ExchangeService:
         self.price_trends = {}  # Track price movement trends
         self.geo_restricted = False  # Flag to track if we're in a restricted region
         self.fallback_mode = False   # Flag to indicate we're in fallback mode
-        self.simulation_log_count = 0  # Counter to control simulation logging frequency
+        self.simulation_log_count = {}  # Counter to control simulation logging frequency per symbol
         
         # Base prices for simulation
         self.base_prices = {
@@ -53,6 +121,9 @@ class ExchangeService:
                 'duration': random.randint(10, 30),    # How many updates before changing
                 'updates': 0                           # Counter for updates
             }
+            self.simulation_log_count[symbol] = 0
+            
+        self._initialized = True
         
     async def _make_request(self, endpoint: str, params: Optional[Dict] = None, method: str = "GET") -> Any:
         url = f"{self.base_url}{endpoint}"
@@ -203,6 +274,24 @@ class ExchangeService:
         
         return new_price
     
+    def _should_log_simulation(self, symbol):
+        """Determine if we should log simulation messages for this symbol"""
+        self.simulation_log_count[symbol] = self.simulation_log_count.get(symbol, 0) + 1
+        should_log = self.simulation_log_count[symbol] % self._simulation_log_frequency == 0
+        
+        # Even if the counter says to log, check if we've logged this recently
+        current_time = time.time()
+        last_time = self._last_warning_times.get(symbol, 0)
+        if current_time - last_time < 60:  # Don't log more often than once per minute
+            should_log = False
+        
+        # If we're going to log, update the timestamp
+        if should_log:
+            self._last_warning_times[symbol] = current_time
+            
+        return should_log
+
+    @suppress_duplicate_logs(interval=30)
     async def get_current_price(self, symbol: str) -> float:
         """Get current price for a symbol with error handling and fallbacks"""
         try:
@@ -234,19 +323,18 @@ class ExchangeService:
             # Only log the full error message if it's not about geo-restrictions
             if not self.geo_restricted and not str(e).startswith("API request failed with status 451"):
                 logger.error(f"Error fetching price for {symbol}: {str(e)}")
-            elif not self.fallback_mode:
-                # Log once when switching to fallback mode
+            
+            # Only log the simulation mode switch once per symbol
+            if not self.fallback_mode:
                 logger.warning(f"Switching to price simulation for {symbol}")
                 self.fallback_mode = True
             
             # Generate a simulated price based on trends and patterns
             simulated_price = self._generate_simulated_price(symbol)
             
-            # Log simulated prices less frequently to reduce noise
-            self.simulation_log_count += 1
-            if self.simulation_log_count % 10 == 0:  # Log only every 10th request
+            # Log simulated prices very infrequently to reduce noise
+            if self._should_log_simulation(symbol):
                 logger.info(f"Using simulated price for {symbol}: {simulated_price}")
-                self.simulation_log_count = 0
             
             return simulated_price
     
@@ -339,7 +427,7 @@ class ExchangeService:
         
         # Start from oldest candle
         current_time = now - (interval_seconds * limit)
-        price = base_price * random.uniform(0.8, 1.2)  # Start with some variation
+        price = base_price * random.uniform(0.8, 1.2) # Start with some variation
         
         # Generate a volatility factor for this symbol
         if symbol in ['BTCUSDT', 'ETHUSDT']:
