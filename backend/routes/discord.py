@@ -60,3 +60,41 @@ async def send_discord_alert(
             status_code=500,
             detail=f"Failed to send Discord alert: {str(e)}"
         )
+
+class TestWebhookRequest(BaseModel):
+    message: str
+
+@router.post("/test-webhook", response_model=Dict[str, Any])
+async def test_discord_webhook(
+    request: TestWebhookRequest,
+    discord_service: DiscordService = Depends()
+):
+    """
+    Test the Discord webhook by sending a simple message
+    """
+    try:
+        result = await discord_service.send_message(
+            content=request.message,
+            embeds=[{
+                "title": "Webhook Test",
+                "description": "This is a test to verify Discord notifications are working",
+                "color": 3447003,  # Blue color
+                "fields": [
+                    {
+                        "name": "Status",
+                        "value": "✅ Working"
+                    }
+                ]
+            }]
+        )
+        
+        return {
+            "success": True,
+            "message": "Discord webhook verified successfully",
+            "webhook": discord_service.webhook_url[:30] + "..."
+        }
+    except Exception as e:
+        raise HTTPException(
+            status_code=500,
+            detail=f"Discord webhook test failed: {str(e)}"
+        )
