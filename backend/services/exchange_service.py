@@ -15,6 +15,9 @@ logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger("exchange_service")
 
 class ExchangeService:
+    # Class variable to track if geo-restriction has been logged
+    _geo_restriction_logged = False
+    
     def __init__(self):
         # API keys
         self.api_key = os.getenv("BINANCE_API_KEY", "")
@@ -27,6 +30,7 @@ class ExchangeService:
         self.price_trends = {}  # Track price movement trends
         self.geo_restricted = False  # Flag to track if we're in a restricted region
         self.fallback_mode = False   # Flag to indicate we're in fallback mode
+        self.simulation_log_count = 0  # Counter to control simulation logging frequency
         
         # Base prices for simulation
         self.base_prices = {
@@ -67,7 +71,10 @@ class ExchangeService:
                             # Check for geo-restriction error
                             if response.status == 451:
                                 self.geo_restricted = True
-                                logger.warning("Binance API access is geo-restricted. Switching to simulation mode.")
+                                # Only log this once per class, using the class variable
+                                if not ExchangeService._geo_restriction_logged:
+                                    logger.warning("Binance API access is geo-restricted. Switching to simulation mode.")
+                                    ExchangeService._geo_restriction_logged = True
                                 raise Exception(f"API request failed with status 451: {text}")
                             
                             logger.error(f"API request failed: {text}")
@@ -81,7 +88,10 @@ class ExchangeService:
                             # Check for geo-restriction error
                             if response.status == 451:
                                 self.geo_restricted = True
-                                logger.warning("Binance API access is geo-restricted. Switching to simulation mode.")
+                                # Only log this once per class, using the class variable
+                                if not ExchangeService._geo_restriction_logged:
+                                    logger.warning("Binance API access is geo-restricted. Switching to simulation mode.")
+                                    ExchangeService._geo_restriction_logged = True
                                 raise Exception(f"API request failed with status 451: {text}")
                             
                             logger.error(f"API request failed: {text}")
@@ -232,8 +242,11 @@ class ExchangeService:
             # Generate a simulated price based on trends and patterns
             simulated_price = self._generate_simulated_price(symbol)
             
-            if not self.geo_restricted:
-                logger.warning(f"Using fallback price for {symbol}: {simulated_price}")
+            # Log simulated prices less frequently to reduce noise
+            self.simulation_log_count += 1
+            if self.simulation_log_count % 10 == 0:  # Log only every 10th request
+                logger.info(f"Using simulated price for {symbol}: {simulated_price}")
+                self.simulation_log_count = 0
             
             return simulated_price
     
