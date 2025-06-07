@@ -9,6 +9,7 @@ from datetime import datetime
 from dotenv import load_dotenv
 import uvicorn
 import asyncio
+import logging
 
 from services.exchange_service import ExchangeService
 from services.discord_service import DiscordService
@@ -19,12 +20,20 @@ from routes.discord import router as discord_router
 # Load environment variables from .env file
 load_dotenv()
 
+# Set up logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger("app")
+
 app = FastAPI(title="Trading View Clone API")
 
 # Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173","https://trading-view-deployment.vercel.app"],  # Add your frontend URLs
+    allow_origins=[
+        "https://trading-view-deployment.vercel.app",  # Your Vercel domain
+        "http://localhost:5173",  # Local development
+        "*"  # Temporarily allow all origins for testing
+    ],
     allow_credentials=True,
     allow_methods=["*"],  # Allow all methods including OPTIONS for preflight
     allow_headers=["*"],
@@ -443,6 +452,33 @@ app.include_router(discord_router, prefix="/api/discord", tags=["discord"])
 @app.get("/")
 async def root():
     return {"message": "Trading API is running"}
+
+@app.get("/api/status")
+async def get_status():
+    return {"status": "ok", "version": "1.0.0"}
+
+# Add a diagnostic endpoint
+@app.get("/api/diagnostic")
+async def diagnostic():
+    try:
+        # Test exchange connection
+        exchange = ExchangeService()
+        btc_price = await exchange.get_current_price("BTCUSDT")
+        
+        return {
+            "success": True,
+            "message": "Diagnostic successful",
+            "price_check": {
+                "symbol": "BTCUSDT",
+                "price": btc_price
+            }
+        }
+    except Exception as e:
+        logger.error(f"Diagnostic failed: {str(e)}")
+        return {
+            "success": False,
+            "error": str(e)
+        }
 
 if __name__ == "__main__":
     uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
