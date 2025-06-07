@@ -20,8 +20,25 @@ from routes.discord import router as discord_router
 # Load environment variables from .env file
 load_dotenv()
 
-# Set up logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging
+logging_level = os.getenv("LOG_LEVEL", "INFO")
+level_mapping = {
+    "DEBUG": logging.DEBUG,
+    "INFO": logging.INFO,
+    "WARNING": logging.WARNING,
+    "ERROR": logging.ERROR,
+    "CRITICAL": logging.CRITICAL
+}
+
+logging.basicConfig(
+    level=level_mapping.get(logging_level, logging.INFO),
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+)
+
+# Set module-specific logging levels to reduce noise
+logging.getLogger("exchange_service").setLevel(logging.WARNING)
+logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+
 logger = logging.getLogger("app")
 
 app = FastAPI(title="Trading View Clone API")
