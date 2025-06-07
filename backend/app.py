@@ -20,7 +20,7 @@ from routes.discord import router as discord_router
 # Load environment variables from .env file
 load_dotenv()
 
-# Configure logging
+# Configure logging with more aggressive suppression for known log spammers
 logging_level = os.getenv("LOG_LEVEL", "INFO")
 level_mapping = {
     "DEBUG": logging.DEBUG,
@@ -30,16 +30,52 @@ level_mapping = {
     "CRITICAL": logging.CRITICAL
 }
 
+# Set up root logger
 logging.basicConfig(
     level=level_mapping.get(logging_level, logging.INFO),
     format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
 )
 
 # Set module-specific logging levels to reduce noise
-logging.getLogger("exchange_service").setLevel(logging.WARNING)
-logging.getLogger("uvicorn.access").setLevel(logging.WARNING)
+exchange_logger = logging.getLogger("exchange_service")
+exchange_logger.setLevel(logging.WARNING)  # Increase to WARNING to reduce noise
+
+prices_logger = logging.getLogger("prices_router")
+prices_logger.setLevel(logging.WARNING)  # Increase to WARNING to reduce noise
+
+access_logger = logging.getLogger("uvicorn.access")
+access_logger.setLevel(logging.WARNING)  # Reduce access log noise
 
 logger = logging.getLogger("app")
+
+# Create a custom filter to suppress repetitive logs
+class DuplicateFilter(logging.Filter):
+    def __init__(self, name=""):
+        super().__init__(name)
+        self.last_log = {}
+        self.interval = 30  # seconds between allowing duplicate logs
+        
+    def filter(self, record):
+        # Create a key from the log record properties
+        key = f"{record.levelname}:{record.msg}"
+        
+        # Check if this is a simulation-related message
+        if "simulation" in record.msg.lower() or "switching to" in record.msg.lower():
+            current_time = time.time()
+            last_time = self.last_log.get(key, 0)
+            
+            # Allow the log if we haven't seen it recently
+            if current_time - last_time > self.interval:
+                self.last_log[key] = current_time
+                return True
+            return False
+        
+        # Allow non-simulation logs
+        return True
+
+# Add the filter to the exchange logger
+duplicate_filter = DuplicateFilter()
+exchange_logger.addFilter(duplicate_filter)
 
 app = FastAPI(title="Trading View Clone API")
 
