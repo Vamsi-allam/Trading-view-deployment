@@ -1,4 +1,5 @@
 import os
+import uuid
 from fastapi import FastAPI, HTTPException, BackgroundTasks, Depends, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
@@ -6,27 +7,26 @@ from pydantic import BaseModel
 from typing import List, Optional
 from datetime import datetime
 from dotenv import load_dotenv
+import uvicorn
+import asyncio
 
 from services.exchange_service import ExchangeService
 from services.discord_service import DiscordService
 from routes.prices import router as prices_router
+from routes.alerts import router as alerts_router
+from routes.discord import router as discord_router
 
 # Load environment variables from .env file
 load_dotenv()
 
 app = FastAPI(title="Trading View Clone API")
 
-# Update CORS middleware for production deployment
+# Configure CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=[
-        "https://trading-view-deployment.vercel.app",  # Replace with your Vercel domain
-        "http://localhost:3000",  # Keep for local development
-        "http://localhost:5173",  # Add Vite's default port
-        "http://127.0.0.1:5173",  # Also include 127.0.0.1 version
-    ],
+    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],  # Add your frontend URLs
     allow_credentials=True,
-    allow_methods=["*"],
+    allow_methods=["*"],  # Allow all methods including OPTIONS for preflight
     allow_headers=["*"],
 )
 
@@ -430,14 +430,19 @@ async def debug_env():
     return {
         "DISCORD_WEBHOOK_URL": webhook_url,
         "env_vars_loaded": bool(os.getenv("DISCORD_WEBHOOK_URL")),
-        "dotenv_loaded": True
+        "dotenv_loaded": True,
+        "deduplication_enabled": True,
+        "dedup_window": 5  # seconds
     }
 
 # Add prices router
 app.include_router(prices_router, prefix="/api/prices", tags=["prices"])
+app.include_router(alerts_router, prefix="/api/alerts", tags=["alerts"])
+app.include_router(discord_router, prefix="/api/discord", tags=["discord"])
+
+@app.get("/")
+async def root():
+    return {"message": "Trading API is running"}
 
 if __name__ == "__main__":
-    import uvicorn
-    # Use PORT environment variable provided by Render
-    port = int(os.environ.get("PORT", 8000))
-    uvicorn.run("app:app", host="0.0.0.0", port=port, reload=True)
+    uvicorn.run("app:app", host="0.0.0.0", port=8000, reload=True)
