@@ -1,4 +1,4 @@
-import { createContext, useContext, useState, useEffect, useCallback } from 'react';
+import { createContext, useContext, useState, useEffect } from 'react';
 import { useSnackbar } from './SnackbarContext';
 
 const TradingContext = createContext();
@@ -36,6 +36,9 @@ export const TradingProvider = ({ children }) => {
     localStorage.setItem('paperTradingPositions', JSON.stringify(positions));
     localStorage.setItem('paperTradingHistory', JSON.stringify(tradeHistory));
   }, [balance, positions, tradeHistory]);
+  
+  // Add a ref to track positions that are currently being closed
+  const [closingPositions, setClosingPositions] = useState(new Set());
   
   // Add funds to balance
   const addFunds = (amount) => {
@@ -133,32 +136,30 @@ export const TradingProvider = ({ children }) => {
     return newPosition;
   };
   
-  // Add a state for tracking positions that are in the process of being closed
-  const [closingPositions, setClosingPositions] = useState({});
-  
-  // Modify closePosition to prevent multiple executions
-  const closePosition = (positionId, closePrice, isLiquidation = false) => {
+  // Close a position
+  const closePosition = (positionId, closePrice) => {
     // Check if this position is already being closed
-    if (closingPositions[positionId]) {
-      console.log(`Position ${positionId} is already being closed, skipping duplicate execution`);
-      return null;
+    if (closingPositions.has(positionId)) {
+      console.log(`Position ${positionId} already being closed, skipping duplicate close`);
+      return false;
     }
     
-    // Find the position to close
+    // Find the position
     const position = positions.find(p => p.id === positionId);
     
-    if (!position || position.status !== 'open') {
-      console.error('Position not found or already closed');
-      return null;
+    if (!position) {
+      showError('Position not found');
+      return false;
     }
     
-    // Immediately mark this position as being closed to prevent double execution
-    setClosingPositions(prev => ({
-      ...prev,
-      [positionId]: true
-    }));
+    // Mark this position as being closed
+    setClosingPositions(prev => {
+      const updated = new Set(prev);
+      updated.add(positionId);
+      return updated;
+    });
     
-    // Calculate position value at entry and close
+    // Calculate PnL
     const positionValue = position.entryPrice * position.quantity;
     const closeValue = closePrice * position.quantity;
     let pnl = 0;
@@ -182,47 +183,45 @@ export const TradingProvider = ({ children }) => {
       leverage: position.leverage,
       time: new Date().toISOString(),
       pnl,
-      margin: position.margin,
-      liquidated: isLiquidation
+      margin: position.margin
     };
     
-    // Perform all state updates in one batch to avoid race conditions
-    const updatedPositions = positions.map(p => 
-      p.id === positionId 
-        ? { ...p, status: 'closed', closedAt: new Date().toISOString() } 
-        : p
-    );
+    // Add to trade history
+    setTradeHistory(prev => [...prev, historyEntry]);
     
-    const updatedHistory = [...tradeHistory, historyEntry];
-    const updatedBalance = balance + position.margin + pnl;
+    // Return margin + PnL to balance
+    setBalance(prev => prev + position.margin + pnl);
     
-    // Update all states at once
-    setTradeHistory(updatedHistory);
-    setPositions(updatedPositions);
-    setBalance(updatedBalance);
+    // Remove from positions
+    setPositions(prev => prev.filter(p => p.id !== positionId));
     
-    // Remove from closing positions after a short delay
+    // After a small delay, remove from closing positions set
     setTimeout(() => {
       setClosingPositions(prev => {
-        const updated = { ...prev };
-        delete updated[positionId];
+        const updated = new Set(prev);
+        updated.delete(positionId);
         return updated;
       });
-    }, 1000);
+    }, 1000); // 1 second cooldown
     
-    return historyEntry;
+    showSuccess(`Closed position with ${pnl >= 0 ? 'profit' : 'loss'} of $${Math.abs(pnl).toFixed(2)}`);
+    return true;
   };
   
-  // Update the updatePositionPnl function to prevent multiple executions for stop loss/take profit
-  const updatePositionPnl = useCallback((symbol, currentPrice) => {
+  // Update position PnL based on current price
+  const updatePositionPnl = (symbol, currentPrice) => {
+    // Create a list to track positions that need to be closed
+    const positionsToClose = [];
+    
+    // First update PnL and identify positions to close, without closing them yet
     setPositions(prev => 
       prev.map(position => {
         if (position.symbol !== symbol || position.status !== 'open') {
           return position;
         }
         
-        // Skip positions that are in the process of being closed
-        if (closingPositions[position.id]) {
+        // Skip positions that are already being closed
+        if (closingPositions.has(position.id)) {
           return position;
         }
         
@@ -237,45 +236,38 @@ export const TradingProvider = ({ children }) => {
           pnl = positionValue - currentValue;
         }
         
-        // Calculate liquidation price
-        const liqPrice = calculateLiquidationPrice(
-          position.entryPrice,
-          position.leverage,
-          position.direction
-        );
-        
-        // Check if position should be liquidated
-        if (position.direction === 'buy' && currentPrice <= liqPrice) {
-          // Close position at liquidation price - it's been liquidated
-          closePosition(position.id, liqPrice, true);
-          return { ...position, status: 'closing', pnl, currentPrice };
-        } 
-        else if (position.direction === 'sell' && currentPrice >= liqPrice) {
-          // Close position at liquidation price - it's been liquidated
-          closePosition(position.id, liqPrice, true);
-          return { ...position, status: 'closing', pnl, currentPrice };
-        }
-        
         // Check for take profit or stop loss
+        let shouldClose = false;
+        let closePrice = currentPrice;
+        
         if (position.takeProfit !== null && position.direction === 'buy' && currentPrice >= position.takeProfit) {
-          // Close position at take profit
-          closePosition(position.id, position.takeProfit);
-          return { ...position, status: 'closing', pnl, currentPrice };
+          // Mark for closing at take profit
+          shouldClose = true;
+          closePrice = position.takeProfit;
         } 
         else if (position.takeProfit !== null && position.direction === 'sell' && currentPrice <= position.takeProfit) {
-          // Close position at take profit
-          closePosition(position.id, position.takeProfit);
-          return { ...position, status: 'closing', pnl, currentPrice };
+          // Mark for closing at take profit
+          shouldClose = true;
+          closePrice = position.takeProfit;
         }
         else if (position.stopLoss !== null && position.direction === 'buy' && currentPrice <= position.stopLoss) {
-          // Close position at stop loss
-          closePosition(position.id, position.stopLoss);
-          return { ...position, status: 'closing', pnl, currentPrice };
+          // Mark for closing at stop loss
+          shouldClose = true;
+          closePrice = position.stopLoss;
         }
         else if (position.stopLoss !== null && position.direction === 'sell' && currentPrice >= position.stopLoss) {
-          // Close position at stop loss
-          closePosition(position.id, position.stopLoss);
-          return { ...position, status: 'closing', pnl, currentPrice };
+          // Mark for closing at stop loss
+          shouldClose = true;
+          closePrice = position.stopLoss;
+        }
+        
+        // If position should be closed, add to list of positions to close
+        if (shouldClose) {
+          positionsToClose.push({
+            id: position.id,
+            price: closePrice,
+            reason: closePrice === position.takeProfit ? 'TP' : 'SL'
+          });
         }
         
         // Update position with new PnL
@@ -286,7 +278,18 @@ export const TradingProvider = ({ children }) => {
         };
       })
     );
-  }, [closePosition, closingPositions]);
+    
+    // After updating all positions, close the ones that hit TP/SL
+    if (positionsToClose.length > 0) {
+      // Use setTimeout to ensure state update has completed
+      setTimeout(() => {
+        positionsToClose.forEach(pos => {
+          console.log(`Closing position ${pos.id} due to ${pos.reason} at price ${pos.price}`);
+          closePosition(pos.id, pos.price);
+        });
+      }, 0);
+    }
+  };
   
   // Cancel pending order
   const cancelOrder = (orderId) => {
@@ -396,15 +399,6 @@ export const TradingProvider = ({ children }) => {
     return true;
   };
   
-  // Add liquidation price calculator function
-  const calculateLiquidationPrice = (entryPrice, leverage, direction, maintenanceMargin = 0.01) => {
-    if (direction === 'buy') {
-      return entryPrice * (1 - (1 / leverage) + maintenanceMargin);
-    } else {
-      return entryPrice * (1 + (1 / leverage) - maintenanceMargin);
-    }
-  };
-
   const value = {
     balance,
     positions,
@@ -416,8 +410,7 @@ export const TradingProvider = ({ children }) => {
     updatePositionPnl,
     cancelOrder,
     checkLimitOrders,
-    modifyPositionTpSl,
-    calculateLiquidationPrice
+    modifyPositionTpSl
   };
   
   return (
