@@ -1,7 +1,6 @@
 import { createContext, useContext, useState, useEffect, useCallback, useRef } from 'react'
 import { fetchAlerts, checkAlertTrigger, sendDiscordAlert, createAlert, updateAlert } from '../services/api'
 import { useSnackbar } from '../context/SnackbarContext'
-import { v4 as uuidv4 } from 'uuid';
 
 // Create context
 const AlertsContext = createContext()
@@ -18,7 +17,6 @@ export const useAlerts = () => {
 
 // Provider component - keep as named export function
 export function AlertsProvider({ children }) {
-  const { showSuccess, showWarning, showError } = useSnackbar?.() || {}
   // Load alerts from localStorage or initialize with empty array
   const [alerts, setAlerts] = useState(() => {
     const savedAlerts = localStorage.getItem('tradingAlerts');
@@ -33,6 +31,7 @@ export function AlertsProvider({ children }) {
   
   const [loading, setLoading] = useState(true)
   const [error, setError] = useState(null)
+  const { showSuccess, showWarning, showError } = useSnackbar?.() || {}
   
   // Store the last checked prices for each alert
   const lastCheckedPricesRef = useRef({});
