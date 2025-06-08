@@ -14,7 +14,7 @@ const Sidebar = ({ isOpen, toggleSidebar }) => {
   const navItems = [
     { id: 'dashboard', label: 'Dashboard', icon: <FaHome /> },
     { id: 'portfolio', label: 'Portfolio', icon: <FaBriefcase /> },
-    { id: 'alerts', label: 'Alerts', icon: <FaBell /> },
+    // { id: 'alerts', label: 'Alerts', icon: <FaBell /> },
     { id: 'analytics', label: 'Analytics', icon: <FaChartLine /> },
     { id: 'settings', label: 'Settings', icon: <FaCog /> }
   ];
